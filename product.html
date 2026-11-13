@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Product | Tims Food</title>
+  <meta name="description" content="Buy TIMS NMC porridge mixes, flour and koko from Tims Food.">
+  <meta name="theme-color" content="#0e5a39">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body data-page="product">
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="promo">Free shipping on orders over GH₵250 · Packed in Accra</div>
+  <header class="nav">
+    <div class="nav-inner">
+      <div class="nav-left">
+        <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="primary-nav">
+          <span class="nav-toggle-label">Menu</span>
+        </button>
+        <a class="brand" href="index.html">Tims Food</a>
+      </div>
+      <form class="search" action="shop.html" method="get" role="search">
+        <label class="sr" for="q-product">Search products</label>
+        <input id="q-product" name="q" placeholder="Search Weannimix, koko, millet…">
+        <button type="submit">Search</button>
+      </form>
+      <nav id="primary-nav" class="primary-nav" aria-label="Primary">
+        <a href="index.html" data-nav="home">Home</a>
+        <a href="shop.html" data-nav="shop">Shop</a>
+        <a href="about.html" data-nav="about">About</a>
+      </nav>
+      <button class="bag-btn" type="button" data-open-bag>
+        <span>Cart</span>
+        <span class="bag-count" data-bag-count>0</span>
+      </button>
+    </div>
+  </header>
+  <main id="main" class="wrap">
+    <div id="product-root"></div>
+  </main>
+  <footer class="footer">
+    <div class="wrap footer-grid">
+      <div>
+        <a class="brand" href="index.html">Tims Food</a>
+        <p class="footer-blurb">TIMS NMC porridge mixes, flour, koko and grits, sold online in Ghana.</p>
+      </div>
+      <div>
+        <p class="footer-label">Shop</p>
+        <a href="shop.html">All products</a>
+        <a href="shop.html?variety=Porridge%20mixes">Porridge mixes</a>
+        <a href="shop.html?variety=Traditional">Traditional</a>
+        <a href="shop.html?variety=Family%20size">Family size</a>
+      </div>
+      <div>
+        <p class="footer-label">Help</p>
+        <a href="about.html">About us</a>
+        <a href="about.html#method">Shipping</a>
+        <a href="checkout.html">Checkout</a>
+      </div>
+      <div>
+        <p class="footer-label">Contact</p>
+        <a href="mailto:hello@timsfood.example">hello@timsfood.example</a>
+        <p class="footer-blurb">Mon–Fri, 8:00–17:00 GMT</p>
+      </div>
+    </div>
+    <div class="wrap footer-base">
+      <p>© 2026 Tims Food</p>
+      <p>Demo store. Payments are not processed.</p>
+    </div>
+  </footer>
+  <script src="js/catalog.js"></script>
+  <script src="js/site.js"></script>
+</body>
+</html>
