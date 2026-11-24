@@ -57,7 +57,7 @@
 
   function totals(cart) {
     const sub = cart.reduce((sum, line) => sum + productById(line.id).price * line.qty, 0);
-    const transit = sub === 0 || sub >= 250 ? 0 : 25;
+    const transit = sub === 0 ? 0 : 25;
     return { sub, transit, total: sub + transit };
   }
 
@@ -120,10 +120,10 @@
     return `
       <div class="totals">
         <div><span>Subtotal</span><span>${money(figures.sub)}</span></div>
-        <div><span>Shipping</span><span>${figures.transit ? money(figures.transit) : "Free"}</span></div>
+        <div><span>Shipping</span><span>${figures.transit ? money(figures.transit) : money(0)}</span></div>
         <div class="grand"><span>Total</span><span>${money(figures.total)}</span></div>
       </div>
-      <p class="quiet">Free shipping on orders of GH₵250 or more.</p>`;
+      <p class="quiet">Shipping is GH₵25 across Ghana.</p>`;
   }
 
   function renderBag() {
@@ -281,7 +281,7 @@
             </div>
             <button class="btn" type="button" data-add="${product.id}" data-configured="true">Add to cart</button>
           </div>
-          <p class="quiet">In stock. Free shipping from GH₵250. This preview does not charge your card.</p>
+          <p class="quiet">In stock. Shipping is GH₵25. This preview does not charge your card.</p>
         </div>
       </article>
       <section class="detail-grid" aria-label="About this product">
