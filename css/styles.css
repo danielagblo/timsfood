@@ -19,19 +19,17 @@
 [hidden] { display: none !important; }
 html {
   scroll-behavior: smooth;
-  overflow-x: hidden;
-  max-width: 100%;
+  overflow-x: clip;
 }
 
 body {
   margin: 0;
-  max-width: 100%;
   background: var(--cream);
   color: var(--ink);
   font-family: "DM Sans", system-ui, sans-serif;
   font-size: 16px;
   line-height: 1.6;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 body.bag-open { overflow: hidden; }
@@ -86,13 +84,15 @@ h1 em, h2 em { color: var(--orange); font-style: italic; }
   padding: 0.4rem 1rem;
 }
 
-.nav {
-  background: rgba(247, 241, 229, 0.92);
-  backdrop-filter: blur(14px);
-  border-bottom: 1px solid var(--line);
+.site-header {
   position: sticky;
   top: 0;
-  z-index: 30;
+  z-index: 40;
+}
+.nav {
+  background: rgba(247, 241, 229, 0.97);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--line);
 }
 
 .nav-inner {
@@ -942,6 +942,12 @@ body[data-page="about"] .footer { margin-top: 0; }
 }
 .footer a { display: block; padding: 0.2rem 0; color: rgba(255, 253, 248, 0.62); }
 .footer a:hover { color: #fff; }
+.footer-base a {
+  display: inline;
+  padding: 0;
+  color: #fdc285;
+}
+.footer-base a:hover { color: #fff; }
 .footer-base {
   display: flex;
   justify-content: space-between;
@@ -1002,7 +1008,6 @@ body[data-page="about"] .footer { margin-top: 0; }
     white-space: normal;
   }
   .nav {
-    position: sticky;
     backdrop-filter: none;
     overflow: visible;
   }
