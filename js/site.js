@@ -87,6 +87,7 @@
   function updateCount(count) {
     document.querySelectorAll("[data-bag-count]").forEach((el) => {
       el.textContent = String(count);
+      el.hidden = count === 0;
     });
     const button = document.querySelector("[data-open-bag]");
     if (button) button.setAttribute("aria-label", count ? `Open cart, ${count} items` : "Open cart");
@@ -392,6 +393,7 @@
     toggle.setAttribute("aria-expanded", open ? "true" : "false");
     const label = toggle.querySelector(".nav-toggle-label");
     if (label) label.textContent = open ? "Close" : "Menu";
+    toggle.setAttribute("aria-label", open ? "Close" : "Menu");
   }
 
   function initPage() {
