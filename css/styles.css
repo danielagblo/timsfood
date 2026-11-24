@@ -283,12 +283,14 @@ h1 em, h2 em { color: var(--orange); font-style: italic; }
 }
 
 .hero-pin {
-  min-height: calc(100vh - 7.2rem);
+  height: calc(100svh - 5.2rem);
+  min-height: calc(100svh - 5.2rem);
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
+  justify-content: center;
   overflow: visible !important;
-  padding-top: 1.5rem;
+  padding: 2rem 0 0.6rem;
+  box-sizing: border-box;
 }
 .pin-spacer:has(.hero-pin) {
   overflow: visible !important;
@@ -344,7 +346,7 @@ h1 em, h2 em { color: var(--orange); font-style: italic; }
 .hero-rail {
   width: 100%;
   overflow: visible;
-  padding: 5.5rem 0 0.4rem;
+  padding: 2.2rem 0 0.2rem;
 }
 .hero-hint {
   display: flex;
@@ -396,7 +398,7 @@ h1 em, h2 em { color: var(--orange); font-style: italic; }
 }
 .hero-track img {
   width: auto;
-  height: min(52vh, 420px);
+  height: min(58vh, 440px);
   object-fit: contain;
   object-position: center bottom;
   background: none;
@@ -1393,7 +1395,17 @@ body[data-page="about"] .footer { margin-top: 0; }
   .hero {
     padding: 2rem 0 1.4rem;
   }
-  .hero-track img { height: min(48vh, 320px); }
+  .hero-pin {
+    height: 50svh;
+    min-height: 50svh;
+    max-height: 50svh;
+    justify-content: center;
+    padding: 1.25rem 0 0.45rem;
+    overflow: hidden !important;
+  }
+  .hero-rail { padding: 0.35rem 0 0; }
+  .hero-hint { margin: 0.3rem 0 0.35rem; }
+  .hero-track img { height: min(30svh, 170px); }
   .hero-media { max-width: 360px; margin-inline: auto; width: 100%; }
   .about-cta-inner { flex-direction: column; align-items: flex-start; }
   .gallery-main { height: min(48vh, 380px); max-width: 360px; }
@@ -1406,20 +1418,6 @@ body[data-page="about"] .footer { margin-top: 0; }
 
 @media (max-width: 900px) {
   :root { --measure: 100%; }
-  .hero-pin {
-    height: 50vh;
-    min-height: 50vh;
-    max-height: 50vh;
-    justify-content: center;
-    padding: 1.15rem 0 0.5rem;
-    overflow: hidden !important;
-  }
-  .hero-rail {
-    padding: 0.2rem 0 0;
-  }
-  .hero-hint {
-    margin: 0.35rem 0 0.4rem;
-  }
   .wrap,
   .nav-inner {
     width: 100%;
@@ -1509,7 +1507,7 @@ body[data-page="about"] .footer { margin-top: 0; }
   .lede { font-size: 1rem; max-width: 100%; }
   .hero-actions { margin-top: 1.2rem; }
   .hero-track { gap: 1rem; }
-  .hero-track img { height: min(28vh, 168px); }
+  .hero-track img { height: min(28svh, 160px); }
   .hero-stage {
     padding: 1.3rem 0.8rem 1rem;
   }
