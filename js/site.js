@@ -57,7 +57,7 @@
 
   function totals(cart) {
     const sub = cart.reduce((sum, line) => sum + productById(line.id).price * line.qty, 0);
-    const transit = sub === 0 ? 0 : 25;
+    const transit = 0;
     return { sub, transit, total: sub + transit };
   }
 
@@ -121,10 +121,9 @@
     return `
       <div class="totals">
         <div><span>Subtotal</span><span>${money(figures.sub)}</span></div>
-        <div><span>Shipping</span><span>${figures.transit ? money(figures.transit) : money(0)}</span></div>
+        <div><span>Shipping</span><span>${figures.transit ? money(figures.transit) : "Free"}</span></div>
         <div class="grand"><span>Total</span><span>${money(figures.total)}</span></div>
-      </div>
-      <p class="quiet">Shipping is GH₵25 across Ghana.</p>`;
+      </div>`;
   }
 
   function renderBag() {
@@ -237,13 +236,21 @@
       : `<p class="quiet">Nothing in this selection.</p>`;
   }
 
+  function siblingProduct(product) {
+    const altId = product.id.endsWith("-family")
+      ? product.id.slice(0, -7)
+      : `${product.id}-family`;
+    const other = productById(altId);
+    return other && other.id !== product.id ? other : null;
+  }
+
   function renderProduct() {
     const root = document.getElementById("product-root");
     if (!root) return;
     const id = new URLSearchParams(location.search).get("id");
     const product = productById(id);
     if (!product) {
-      document.title = "Product — Tims Food";
+      document.title = "Product — Tims Foods";
       root.innerHTML = `
         <div class="page-hero">
           <p class="crumb"><a href="shop.html">Products</a></p>
@@ -253,8 +260,9 @@
         </div>`;
       return;
     }
-    document.title = `${product.name} — Tims Food`;
+    document.title = `${product.name} — Tims Foods`;
     const main = product.gallery[0];
+    const sibling = siblingProduct(product);
     const related = window.EV.products
       .filter((item) => item.id !== product.id && (item.variety === product.variety || item.category === product.category))
       .concat(window.EV.products.filter((item) => item.id !== product.id && item.variety !== product.variety))
@@ -262,7 +270,7 @@
       .slice(0, 3);
 
     root.innerHTML = `
-      <p class="crumb"><a href="index.html">Home</a> / <a href="shop.html">Shop</a> / ${escapeHtml(product.name)}</p>
+      <p class="crumb"><a href="index.html">Home</a> / <a href="shop.html">Shop</a> / ${escapeHtml(product.variety)} / ${escapeHtml(product.name)}</p>
       <article class="product">
         <div class="gallery">
           <img class="gallery-main" data-main-image src="${main.src}" alt="${escapeHtml(main.alt)}">
@@ -273,7 +281,7 @@
           <p class="epithet">${escapeHtml(product.epithet)}</p>
           <p class="stars" aria-label="${product.rating} out of 5 stars">★★★★★ <span>${product.rating} (${product.reviews} reviews)</span></p>
           <p class="price">${money(product.price)}</p>
-          <p class="format">${escapeHtml(product.format)} · ${escapeHtml(product.weight)}</p>
+          <p class="format">${escapeHtml(product.format)} · ${escapeHtml(product.variety)}</p>
           <div class="buy-row">
             <div class="qty">
               <button type="button" data-step="-1" aria-label="Decrease quantity">−</button>
@@ -282,29 +290,17 @@
             </div>
             <button class="btn" type="button" data-add="${product.id}" data-configured="true">Add to cart</button>
           </div>
-          <p class="quiet">In stock. Shipping is GH₵25. This preview does not charge your card.</p>
+          <a class="btn btn-ghost buy-checkout" href="checkout.html">Checkout</a>
+          <ul class="buy-facts">
+            <li>${escapeHtml(product.palate)}</li>
+            <li>${escapeHtml(product.table)}</li>
+            <li>Keep the lid on. Store in a dry cupboard.</li>
+            <li>${escapeHtml(product.format)} · Packed by TIMS NMC in Accra</li>
+            <li>${escapeHtml(product.season)} · Ships from Accra</li>
+            ${sibling ? `<li>Also in <a href="product.html?id=${encodeURIComponent(sibling.id)}">${escapeHtml(sibling.format).toLowerCase()}</a>.</li>` : ""}
+          </ul>
         </div>
       </article>
-      <section class="detail-grid" aria-label="About this product">
-        <article>
-          <h2>About</h2>
-          <p>${escapeHtml(product.palate)}</p>
-        </article>
-        <article>
-          <h2>How to use</h2>
-          <p>${escapeHtml(product.table)}</p>
-        </article>
-        <article>
-          <h2>Sourcing</h2>
-          <p>${escapeHtml(product.harvest)}</p>
-        </article>
-      </section>
-      <dl class="specs">
-        <div><dt>Pack</dt><dd>${escapeHtml(product.format)}</dd></div>
-        <div><dt>Origin</dt><dd>${escapeHtml(product.origin)}</dd></div>
-        <div><dt>Availability</dt><dd>${escapeHtml(product.season)}</dd></div>
-        <div><dt>Ships</dt><dd>From Accra</dd></div>
-      </dl>
       <section class="section related">
         <div class="section-head">
           <div>
@@ -316,13 +312,29 @@
       </section>`;
   }
 
+  function summaryLineHtml(line) {
+    const product = productById(line.id);
+    const image = product.gallery[0];
+    return `
+      <article class="co-line">
+        <img src="${image.src}" alt="">
+        <div>
+          <h3>${escapeHtml(product.name)}</h3>
+          <p>${escapeHtml(product.format)} · ×${line.qty}</p>
+        </div>
+        <span>${money(product.price * line.qty)}</span>
+      </article>`;
+  }
+
   function renderSummary() {
     const summary = document.getElementById("summary");
     if (!summary) return;
     const cart = readCart();
+    const count = cart.reduce((sum, line) => sum + line.qty, 0);
     summary.innerHTML = `
+      <p class="checkout-kicker">${count} ${count === 1 ? "item" : "items"}</p>
       <h2>Order summary</h2>
-      ${cart.map(lineHtml).join("")}
+      <div class="co-lines">${cart.map(summaryLineHtml).join("")}</div>
       ${totalsHtml(cart)}`;
   }
 
@@ -348,11 +360,13 @@
     }).join("");
     view.hidden = false;
     view.innerHTML = `
-      <p class="eyebrow">Order ${escapeHtml(order.ref)}</p>
+      <p class="checkout-badge">Order ${escapeHtml(order.ref)}</p>
       <h1>Thanks, ${escapeHtml(order.data.name)}.</h1>
-      <p class="lede">Your order is confirmed for ${escapeHtml(order.data.city)}. This preview does not charge or ship.</p>
-      <ul class="confirm-lines">${lines}</ul>
-      <p class="confirm-total"><span>Total</span><span>${money(order.totals.total)}</span></p>
+      <p class="lede">Your guest order is noted for ${escapeHtml(order.data.city)}. This preview does not charge or ship.</p>
+      <div class="checkout-card confirm-card">
+        <ul class="confirm-lines">${lines}</ul>
+        <p class="confirm-total"><span>Total</span><span>${money(order.totals.total)}</span></p>
+      </div>
       <p class="quiet">Nothing has been charged, and nothing will ship.</p>
       <a class="btn" href="shop.html">Continue shopping</a>`;
     window.scrollTo(0, 0);

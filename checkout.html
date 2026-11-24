@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Checkout | Tims Food</title>
+  <title>Checkout | Tims Foods</title>
   <meta name="description" content="Checkout. This demo does not process payments.">
   <meta name="theme-color" content="#0e5a39">
   <link rel="icon" href="assets/logo.png" type="image/png">
@@ -15,7 +15,7 @@
 <body data-page="checkout">
   <a class="skip" href="#main">Skip to content</a>
   <header class="site-header">
-    <div class="promo">Packed in Accra · Shipping GH₵25</div>
+    <div class="promo">Packed in Accra · Sealed TIMS NMC jars</div>
     <div class="nav">
     <div class="nav-inner">
       <div class="nav-left">
@@ -23,7 +23,7 @@
           <span class="nav-toggle-bars" aria-hidden="true"></span>
           <span class="nav-toggle-label sr">Menu</span>
         </button>
-        <a class="brand" href="index.html"><img src="assets/logo.png" alt="TIMS NMC"></a>
+        <a class="brand" href="index.html"><img src="assets/logo.png" alt=""><span class="brand-name">Tims Foods</span></a>
       </div>
       <nav id="primary-nav" class="primary-nav" aria-label="Primary">
         <a href="index.html" data-nav="home">Home</a>
@@ -48,62 +48,78 @@
   </header>
   <main id="main" class="wrap">
     <div id="checkout-view">
-      <header class="page-hero">
+      <div id="checkout-empty" class="checkout-empty" hidden>
         <p class="crumb"><a href="index.html">Home</a> / Checkout</p>
-        <h1>Checkout</h1>
-        <p class="lede">Enter your delivery details. This demo does not take payment.</p>
-      </header>
-      <div id="checkout-empty" class="page-hero" hidden>
-        <h2>Your cart is empty</h2>
-        <p class="lede">Add products before you check out.</p>
-        <a class="btn" href="shop.html">Continue shopping</a>
+        <p class="checkout-badge">Guest checkout</p>
+        <h1>Your bag is empty</h1>
+        <p class="lede">Add a jar, then come back to check out as a guest. No account needed.</p>
+        <a class="btn" href="shop.html">Shop the range</a>
       </div>
       <div class="checkout" id="checkout-live">
-        <form id="checkout-form">
-          <div class="form-grid">
-            <label class="field wide">
-              <span>Full name</span>
-              <input name="name" required autocomplete="name">
-            </label>
-            <label class="field">
-              <span>Email</span>
-              <input name="email" type="email" required autocomplete="email">
-            </label>
-            <label class="field">
-              <span>Phone</span>
-              <input name="phone" type="tel" autocomplete="tel">
-            </label>
-            <label class="field wide">
-              <span>Address</span>
-              <input name="address" required autocomplete="street-address">
-            </label>
-            <label class="field">
-              <span>City</span>
-              <input name="city" required autocomplete="address-level2">
-            </label>
-            <label class="field">
-              <span>Postcode</span>
-              <input name="postcode" required autocomplete="postal-code">
-            </label>
-            <label class="field wide">
-              <span>Country</span>
-              <select name="country" required autocomplete="country-name">
-                <option value="">Select</option>
-                <option selected>Ghana</option>
-                <option>Nigeria</option>
-                <option>Côte d’Ivoire</option>
-                <option>Togo</option>
-                <option>Benin</option>
-                <option>Burkina Faso</option>
-              </select>
-            </label>
-            <label class="field wide">
-              <span>Delivery note</span>
-              <textarea name="note" placeholder="Door code, delivery instructions"></textarea>
-            </label>
-          </div>
-          <button class="btn btn-full" type="submit">Place order</button>
-          <p class="quiet">Demo checkout. No payment is taken.</p>
+        <header class="checkout-head">
+          <p class="crumb"><a href="index.html">Home</a> / <a href="shop.html">Shop</a> / Checkout</p>
+          <p class="checkout-badge">Guest checkout</p>
+          <h1>Delivery details</h1>
+          <p class="lede">No account needed. We’ll use this for your Accra dispatch.</p>
+        </header>
+        <form id="checkout-form" class="checkout-form">
+          <section class="checkout-card">
+            <h2>Contact</h2>
+            <div class="form-grid">
+              <label class="field wide">
+                <span>Full name</span>
+                <input name="name" required autocomplete="name" placeholder="Ama Mensah">
+              </label>
+              <label class="field">
+                <span>Email</span>
+                <input name="email" type="email" required autocomplete="email" placeholder="ama@email.com">
+              </label>
+              <label class="field">
+                <span>Phone</span>
+                <input name="phone" type="tel" required autocomplete="tel" placeholder="024 000 0000">
+              </label>
+            </div>
+          </section>
+          <section class="checkout-card">
+            <h2>Delivery</h2>
+            <div class="form-grid">
+              <label class="field wide">
+                <span>Address</span>
+                <input name="address" required autocomplete="street-address" placeholder="Street, house number or landmark">
+              </label>
+              <label class="field">
+                <span>City</span>
+                <input name="city" required autocomplete="address-level2" placeholder="Accra">
+              </label>
+              <label class="field">
+                <span>Region</span>
+                <input name="postcode" autocomplete="address-level1" placeholder="Greater Accra">
+              </label>
+              <label class="field wide">
+                <span>Country</span>
+                <select name="country" required autocomplete="country-name">
+                  <option selected>Ghana</option>
+                  <option>Nigeria</option>
+                  <option>Côte d’Ivoire</option>
+                  <option>Togo</option>
+                  <option>Benin</option>
+                  <option>Burkina Faso</option>
+                </select>
+              </label>
+              <label class="field wide">
+                <span>Delivery note <em>(optional)</em></span>
+                <textarea name="note" placeholder="Gate colour, landmark, preferred time"></textarea>
+              </label>
+            </div>
+          </section>
+          <section class="checkout-card">
+            <h2>Payment</h2>
+            <div class="pay-choice" aria-pressed="true">
+              <strong>Pay on delivery</strong>
+              <span>Cash or MoMo when your jars arrive. Nothing is charged on this preview.</span>
+            </div>
+          </section>
+          <button class="btn btn-full" type="submit">Place guest order</button>
         </form>
         <aside class="summary" id="summary" aria-label="Order summary"></aside>
       </div>
@@ -112,32 +128,32 @@
   </main>
   <footer class="footer">
     <div class="wrap footer-grid">
-      <div>
-        <a class="brand" href="index.html"><img src="assets/logo.png" alt="TIMS NMC"></a>
+      <div class="footer-brand">
+        <a class="brand" href="index.html"><img src="assets/logo.png" alt=""><span class="brand-name">Tims Foods</span></a>
         <p class="footer-blurb">TIMS NMC porridge mixes, flour, koko and grits, sold online in Ghana.</p>
       </div>
-      <div>
+      <nav class="footer-col" aria-label="Shop">
         <p class="footer-label">Shop</p>
         <a href="shop.html">All products</a>
         <a href="shop.html?variety=Porridge%20mixes">Porridge mixes</a>
         <a href="shop.html?variety=Traditional">Traditional</a>
         <a href="shop.html?variety=Family%20size">Family size</a>
-      </div>
-      <div>
+      </nav>
+      <nav class="footer-col" aria-label="Help">
         <p class="footer-label">Help</p>
         <a href="about.html">About us</a>
-        <a href="about.html#method">Shipping</a>
+        <a href="about.html#order">Shipping</a>
         <a href="checkout.html">Checkout</a>
-      </div>
-      <div>
+      </nav>
+      <div class="footer-col">
         <p class="footer-label">Contact</p>
         <a href="mailto:hello@timsfood.example">hello@timsfood.example</a>
         <p class="footer-blurb">Mon–Fri, 8:00–17:00 GMT</p>
       </div>
     </div>
     <div class="wrap footer-base">
-      <p>© 2026 Tims Food</p>
-      <p>Demo store. Payments are not processed.</p>
+      <p>© 2026 Tims Foods</p>
+      <p>Site developed by <a href="https://skytechghana.com" target="_blank" rel="noopener noreferrer">Skytechghana</a></p>
     </div>
   </footer>
   <script src="js/catalog.js"></script>

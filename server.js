@@ -32,5 +32,5 @@ http.createServer((req, res) => {
     res.end(data);
   });
 }).listen(5173, "127.0.0.1", () => {
-  console.log("Tims Food shop: http://127.0.0.1:5173/");
+  console.log("Tims Foods shop: http://127.0.0.1:5173/");
 });
