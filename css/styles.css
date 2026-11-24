@@ -1407,15 +1407,18 @@ body[data-page="about"] .footer { margin-top: 0; }
 @media (max-width: 900px) {
   :root { --measure: 100%; }
   .hero-pin {
-    min-height: 0;
-    justify-content: flex-start;
-    padding-top: 0.35rem;
+    height: 50vh;
+    min-height: 50vh;
+    max-height: 50vh;
+    justify-content: center;
+    padding: 1.15rem 0 0.5rem;
+    overflow: hidden !important;
   }
   .hero-rail {
-    padding: 1.6rem 0 0.2rem;
+    padding: 0.2rem 0 0;
   }
   .hero-hint {
-    margin: 0.15rem 0 0.85rem;
+    margin: 0.35rem 0 0.4rem;
   }
   .wrap,
   .nav-inner {
@@ -1506,7 +1509,7 @@ body[data-page="about"] .footer { margin-top: 0; }
   .lede { font-size: 1rem; max-width: 100%; }
   .hero-actions { margin-top: 1.2rem; }
   .hero-track { gap: 1rem; }
-  .hero-track img { height: min(42vh, 250px); }
+  .hero-track img { height: min(28vh, 168px); }
   .hero-stage {
     padding: 1.3rem 0.8rem 1rem;
   }
