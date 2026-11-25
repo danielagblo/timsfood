@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Checkout | Tims Foods</title>
-  <meta name="description" content="Checkout. This demo does not process payments.">
+  <meta name="description" content="Checkout. Orders are saved online; payment is on delivery.">
   <meta name="theme-color" content="#0e5a39">
   <link rel="icon" href="assets/logo.png" type="image/png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -29,6 +29,7 @@
         <a href="index.html" data-nav="home">Home</a>
         <a href="shop.html" data-nav="shop">Shop</a>
         <a href="about.html" data-nav="about">About</a>
+        <a href="login.html" data-auth-link data-nav="account">Sign in</a>
       </nav>
       <div class="nav-tools">
         <form class="search" action="shop.html" method="get" role="search">
@@ -61,6 +62,7 @@
           <p class="checkout-badge">Guest checkout</p>
           <h1>Delivery details</h1>
           <p class="lede">No account needed. We’ll use this for your Accra dispatch.</p>
+          <p class="checkout-signin" data-auth-note>Ordering as a guest? Sign in to keep your order history.</p>
         </header>
         <form id="checkout-form" class="checkout-form">
           <section class="checkout-card">
@@ -116,10 +118,11 @@
             <h2>Payment</h2>
             <div class="pay-choice" aria-pressed="true">
               <strong>Pay on delivery</strong>
-              <span>Cash or MoMo when your jars arrive. Nothing is charged on this preview.</span>
+              <span>Cash or MoMo when your jars arrive. Nothing is charged online.</span>
             </div>
           </section>
-          <button class="btn btn-full" type="submit">Place guest order</button>
+          <p class="form-error" data-form-error hidden></p>
+          <button class="btn btn-full" type="submit">Place order</button>
         </form>
         <aside class="summary" id="summary" aria-label="Order summary"></aside>
       </div>
@@ -157,6 +160,7 @@
     </div>
   </footer>
   <script src="js/catalog.js"></script>
+  <script src="js/api.js"></script>
   <script src="js/site.js"></script>
 </body>
 </html>

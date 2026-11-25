@@ -1620,3 +1620,88 @@ body[data-page="about"] .footer { margin-top: 0; }
   html { scroll-behavior: auto; }
   .card-media img { animation: none; transition: none; }
 }
+
+/* Accounts and saved orders */
+
+.checkout-signin { margin-top: 0.5rem; font-size: 0.86rem; color: var(--muted); }
+.checkout-signin a,
+.account-page .text-link { text-decoration: underline; text-underline-offset: 3px; }
+
+.form-error {
+  padding: 0.7rem 0.9rem;
+  border: 1px solid rgba(160, 50, 30, 0.35);
+  border-radius: 10px;
+  background: rgba(160, 50, 30, 0.07);
+  color: #8c2f20;
+  font-size: 0.88rem;
+}
+
+.auth { max-width: 34rem; padding: 1.6rem 0 4rem; }
+.auth .page-hero { padding-top: 0; }
+.auth-card {
+  background: var(--paper);
+  border: 1px solid rgba(31, 37, 27, 0.1);
+  border-radius: 16px;
+  padding: 1.3rem;
+  box-shadow: 0 10px 30px rgba(50, 37, 20, 0.04);
+}
+.auth-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.3rem;
+  padding: 0.25rem;
+  margin-bottom: 1.1rem;
+  border-radius: 999px;
+  background: var(--cream-deep);
+}
+.auth-switch button {
+  padding: 0.55rem 0.8rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--muted);
+}
+.auth-switch button.is-active {
+  background: var(--paper);
+  color: var(--green);
+  box-shadow: 0 2px 8px rgba(50, 37, 20, 0.08);
+}
+.auth-form { display: grid; gap: 0.9rem; }
+.auth-form .btn-full { margin-top: 0.25rem; }
+
+.account-page { padding: 1.6rem 0 4rem; }
+.account-profile {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+.account-profile h2 { font-size: 1.5rem; margin-top: 0.2rem; }
+.account-orders { margin-top: 1.8rem; }
+.account-orders .section-head { margin-bottom: 1rem; }
+.order-list { display: grid; gap: 1rem; }
+.order-card {
+  background: var(--paper);
+  border: 1px solid rgba(31, 37, 27, 0.1);
+  border-radius: 16px;
+  padding: 1.15rem 1.3rem;
+}
+.order-card header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 0.8rem;
+}
+.order-card h3 { font-family: "Fraunces", serif; font-size: 1.1rem; }
+.order-status {
+  padding: 0.22rem 0.65rem;
+  border-radius: 999px;
+  background: rgba(14, 90, 57, 0.1);
+  color: var(--green);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.order-card .confirm-total { margin-top: 0.4rem; }
