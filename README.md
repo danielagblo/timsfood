@@ -1,6 +1,6 @@
 # Tims Foods
 
-A shop front with a **MySQL-backed API** and an admin portal. Products, accounts, orders and product images live in MySQL; payment is pay-on-delivery.
+A shop front with a **MySQL-backed API** and an admin portal. Products, accounts, orders and product images live in MySQL; checkout supports pay-on-delivery and Paystack online payments.
 
 ```
 timsfood/
@@ -35,8 +35,27 @@ The database named by `DB_NAME` is created automatically. On first start the pro
 | `CLIENT_ORIGIN` | none | Exact browser origin allowed by CORS (e.g. Vercel URL) |
 | `COOKIE_SAME_SITE` | `Lax` | Set to `None` for cross-site hosting (adds `Secure`) |
 | `CATALOG_PATH`, `ASSETS_DIR` | local copies | Override seed sources when deploying the backend alone |
+| `PAYSTACK_SECRET_KEY` | none | Server key used to initialize and verify payments |
+| `PAYSTACK_PUBLIC_KEY` | none | Browser key, kept for reference (hosted checkout uses the secret key) |
+| `PAYSTACK_CALLBACK_BASE` | request origin | Public client origin used to build the Paystack callback URL |
+| `PAYSTACK_CURRENCY` | `GHS` | Currency sent to Paystack (amounts are converted to pesewas) |
+| `PAYSTACK_WEBHOOK_SECRET` | none | `whsec_...` signing secret from the dashboard, or your secret key for older integrations |
+| `PAYSTACK_API_BASE` | `https://api.paystack.co` | Override only for local testing against a mock API |
 
 Credentials are never committed — `.env` is gitignored.
+
+## Payments
+
+Checkout offers **Pay on delivery** (unchanged) and **Pay with Paystack**. With Paystack:
+
+1. The order is saved in MySQL first with `payment_status = 'awaiting_payment'`.
+2. The browser is redirected to Paystack's hosted checkout using a fresh transaction reference.
+3. Paystack redirects back to `payment.html`, which calls `/api/payments/verify`. On success the order becomes `payment_status = 'paid'` and the cart is cleared.
+4. Optionally, a signed `charge.success` webhook marks the order paid even if the customer closes the tab.
+
+Add your keys to `backend/.env` (see `.env.example`). For production set `PAYSTACK_CALLBACK_BASE` to the public client URL, e.g. `https://your-client.vercel.app`.
+
+Webhook setup (new dashboard): go to **Developers → API configuration**, generate/copy the signing secret (`whsec_...`), then under **Developers → Webhooks** add the URL `https://your-backend.example.com/api/payments/webhook` and subscribe to `charge.success`. Put the `whsec_...` value in `PAYSTACK_WEBHOOK_SECRET`. On older dashboards, the webhook URL is under **Settings → API Keys & Webhooks** and events are signed with your secret key — put that key in `PAYSTACK_WEBHOOK_SECRET` instead. The server verifies both styles. Without keys, delivery orders still work and the Paystack option returns a clear configuration error.
 
 ## Deploying separately (recommended)
 
@@ -89,6 +108,9 @@ Open `admin.html` and sign in with `ADMIN_EMAIL` / `ADMIN_PASSWORD`. The **Admin
 | `GET` | `/api/me` | Current user, or `null` |
 | `POST` | `/api/orders` | Place an order (guest or signed in) |
 | `GET` | `/api/orders` | Signed-in order history |
+| `POST` | `/api/payments/initialize` | Start a Paystack checkout for a saved order |
+| `GET` | `/api/payments/verify?reference=` | Verify a returned payment and mark the order paid |
+| `POST` | `/api/payments/webhook` | Signed Paystack `charge.success` webhook |
 | `GET` | `/api/admin/summary` | Admin dashboard totals |
 | `GET` / `POST` | `/api/admin/products` | Admin product list / create |
 | `PUT` / `DELETE` | `/api/admin/products/:id` | Edit / remove a product |

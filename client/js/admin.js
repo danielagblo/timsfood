@@ -31,6 +31,18 @@
     return td;
   }
 
+  function paymentCell(order) {
+    const payment = order.payment || {};
+    const td = document.createElement("td");
+    const chip = document.createElement("span");
+    chip.className = `payment-chip ${payment.status === "paid" ? "is-paid" : "is-unpaid"}`;
+    chip.textContent = payment.method === "paystack"
+      ? `Paystack · ${payment.status === "paid" ? "paid" : (payment.status || "unpaid")}`
+      : "Pay on delivery";
+    td.appendChild(chip);
+    return td;
+  }
+
   function thumbnails(gallery) {
     if (!gallery || !gallery.length) return cell("—");
     const td = document.createElement("td");
@@ -146,12 +158,14 @@
       return;
     }
     target.replaceChildren(table(
-      ["Reference", "Customer", "Items", "Total", "Status", "Placed", "Account"],
+      ["Reference", "Customer", "Items", "Total", "Payment", "Status", "Placed", "Account"],
       orders.map((order) => {
         const row = document.createElement("tr");
         [order.ref, order.data.name, order.items.reduce((sum, item) => sum + item.qty, 0),
           money(order.totals.total)]
           .forEach((value) => row.appendChild(cell(value)));
+
+        row.appendChild(paymentCell(order));
 
         const statusCell = document.createElement("td");
         const select = document.createElement("select");

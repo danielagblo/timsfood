@@ -3,8 +3,11 @@
 const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const { spawn } = require("node:child_process");
+const http = require("node:http");
+const crypto = require("node:crypto");
 const path = require("node:path");
 const mysql = require("mysql2/promise");
+const { verifyWebhookSignature } = require("../server");
 
 const root = path.resolve(__dirname, "..");
 try {
@@ -16,6 +19,13 @@ try {
 const testDb = `timsfood_test_${process.pid}`;
 const port = 5199;
 const base = `http://127.0.0.1:${port}`;
+const paystackPort = 5200;
+const paystackSecret = "test_secret";
+const webhookSecret = "test_webhook_secret";
+let paystackMock;
+let lastInitialize = null;
+let verifyStatus = "success";
+let verifyAmount = null;
 const dbConnection = {
   host: process.env.DB_HOST || "127.0.0.1",
   port: Number(process.env.DB_PORT) || 3306,
@@ -31,6 +41,15 @@ async function withAdmin(action) {
     await action(admin);
   } finally {
     await admin.end();
+  }
+}
+
+async function withTestDb(action) {
+  const connection = await mysql.createConnection({ ...dbConnection, database: testDb });
+  try {
+    await action(connection);
+  } finally {
+    await connection.end();
   }
 }
 
@@ -65,7 +84,15 @@ async function waitForServer() {
 async function startServer() {
   child = spawn(process.execPath, [path.join(root, "server.js")], {
     cwd: root,
-    env: { ...process.env, PORT: String(port), DB_NAME: testDb },
+    env: {
+      ...process.env,
+      PORT: String(port),
+      DB_NAME: testDb,
+      PAYSTACK_SECRET_KEY: paystackSecret,
+      PAYSTACK_WEBHOOK_SECRET: webhookSecret,
+      PAYSTACK_API_BASE: `http://127.0.0.1:${paystackPort}`,
+      PAYSTACK_CALLBACK_BASE: base
+    },
     stdio: ["ignore", "pipe", "pipe"]
   });
   child.stderr.on("data", (chunk) => process.stderr.write(chunk));
@@ -119,13 +146,60 @@ const delivery = {
   note: "Call on arrival"
 };
 
+async function startPaystackMock() {
+  paystackMock = http.createServer((req, res) => {
+    const chunks = [];
+    req.on("data", (chunk) => chunks.push(chunk));
+    req.on("end", () => {
+      const body = Buffer.concat(chunks).toString("utf8");
+      res.setHeader("Content-Type", "application/json");
+      if (req.url === "/transaction/initialize") {
+        lastInitialize = JSON.parse(body || "{}");
+        assert.equal(req.headers.authorization, `Bearer ${paystackSecret}`);
+        return res.end(JSON.stringify({
+          status: true,
+          data: {
+            authorization_url: `http://127.0.0.1:${paystackPort}/checkout/${lastInitialize.reference}`,
+            access_code: "mock",
+            reference: lastInitialize.reference
+          }
+        }));
+      }
+      const verify = req.url.match(/^\/transaction\/verify\/(.+)$/);
+      if (verify) {
+        const reference = decodeURIComponent(verify[1]);
+        return res.end(JSON.stringify({
+          status: true,
+          data: {
+            status: verifyStatus,
+            reference,
+            amount: verifyAmount == null ? (lastInitialize && lastInitialize.amount) : verifyAmount,
+            currency: "GHS"
+          }
+        }));
+      }
+      res.statusCode = 404;
+      res.end("{}");
+    });
+  });
+  await new Promise((resolve) => paystackMock.listen(paystackPort, "127.0.0.1", resolve));
+}
+
+async function stopPaystackMock() {
+  if (!paystackMock) return;
+  await new Promise((resolve) => paystackMock.close(resolve));
+  paystackMock = undefined;
+}
+
 before(async () => {
+  await startPaystackMock();
   await resetTestDatabase();
   await startServer();
 });
 
 after(async () => {
   await stopServer();
+  await stopPaystackMock();
   await dropTestDatabase();
 });
 
@@ -423,5 +497,142 @@ test("admin portal manages the shop", async (t) => {
     response = await admin.request("/api/admin/users");
     assert.equal(response.status, 200);
     assert.ok(response.body.users.some((user) => user.email === process.env.ADMIN_EMAIL && user.isAdmin));
+  });
+});
+
+test("Paystack orders are saved first, then marked paid", async (t) => {
+  async function placeOrder(extra = {}) {
+    const response = await fetch(`${base}/api/orders`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...delivery,
+        items: [{ id: "rice-flour", qty: 2 }],
+        ...extra
+      })
+    });
+    assert.equal(response.status, 201);
+    return (await response.json()).order;
+  }
+
+  async function paymentRow(ref) {
+    let result;
+    await withTestDb(async (connection) => {
+      const [rows] = await connection.query(
+        "SELECT payment_method, payment_status, payment_reference, paid_at FROM `orders` WHERE ref = ?",
+        [ref]
+      );
+      result = rows[0];
+    });
+    return result;
+  }
+
+  async function initialize(order) {
+    const response = await fetch(`${base}/api/payments/initialize`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ref: order.ref })
+    });
+    assert.equal(response.status, 200);
+    return (await response.json());
+  }
+
+  let paystackOrder;
+  let reference;
+
+  await t.test("delivery and Paystack orders start unpaid", async () => {
+    const deliveryOrder = await placeOrder();
+    assert.equal(deliveryOrder.payment.method, "delivery");
+    assert.equal(deliveryOrder.payment.status, "unpaid");
+
+    paystackOrder = await placeOrder({ paymentMethod: "paystack" });
+    assert.equal(paystackOrder.payment.method, "paystack");
+    assert.equal(paystackOrder.payment.status, "unpaid");
+    assert.equal((await paymentRow(paystackOrder.ref)).payment_status, "unpaid");
+  });
+
+  await t.test("initialize returns a hosted checkout URL and saves the reference", async () => {
+    const result = await initialize(paystackOrder);
+    reference = result.reference;
+    assert.ok(reference.startsWith(`${paystackOrder.ref}-`));
+    assert.ok(result.authorizationUrl.startsWith(`http://127.0.0.1:${paystackPort}/checkout/`));
+    assert.equal(lastInitialize.amount, paystackOrder.totals.total * 100);
+    assert.equal(lastInitialize.currency, "GHS");
+    assert.ok(lastInitialize.callback_url.endsWith("/payment.html"));
+
+    const row = await paymentRow(paystackOrder.ref);
+    assert.equal(row.payment_reference, reference);
+    assert.equal(row.payment_status, "awaiting_payment");
+  });
+
+  await t.test("verification marks the order paid and is idempotent", async () => {
+    let response = await fetch(`${base}/api/payments/verify?reference=${encodeURIComponent(reference)}`);
+    assert.equal(response.status, 200);
+    let data = await response.json();
+    assert.equal(data.status, "paid");
+    assert.equal(data.order.payment.status, "paid");
+    assert.ok(data.order.payment.paidAt);
+
+    response = await fetch(`${base}/api/payments/verify?reference=${encodeURIComponent(reference)}`);
+    assert.equal(response.status, 200);
+
+    const order = await placeOrder({ paymentMethod: "paystack" });
+    const started = await initialize(order);
+    verifyAmount = 1;
+    response = await fetch(`${base}/api/payments/verify?reference=${encodeURIComponent(started.reference)}`);
+    verifyAmount = null;
+    assert.equal(response.status, 400);
+    assert.equal((await paymentRow(order.ref)).payment_status, "failed");
+  });
+
+  await t.test("a signed webhook marks the order paid", async () => {
+    const order = await placeOrder({ paymentMethod: "paystack" });
+    const started = await initialize(order);
+    const payload = JSON.stringify({
+      event: "charge.success",
+      data: { reference: started.reference, amount: order.totals.total * 100, currency: "GHS" }
+    });
+    const post = (signature) => fetch(`${base}/api/payments/webhook`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-paystack-signature": signature
+      },
+      body: payload
+    });
+
+    let response = await post("bad-signature");
+    assert.equal(response.status, 401);
+    assert.equal((await paymentRow(order.ref)).payment_status, "awaiting_payment");
+
+    const signature = crypto.createHmac("sha512", webhookSecret).update(payload).digest("hex");
+    response = await post(signature);
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).received, true);
+    assert.equal((await paymentRow(order.ref)).payment_status, "paid");
+  });
+
+  await t.test("pay-on-delivery orders cannot be paid online", async () => {
+    const order = await placeOrder();
+    const response = await fetch(`${base}/api/payments/initialize`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ref: order.ref })
+    });
+    assert.equal(response.status, 400);
+    assert.match((await response.json()).error, /pay on delivery/i);
+  });
+
+  await t.test("new whsec_ webhook signatures are verified", async () => {
+    const secret = "whsec_test_secret";
+    const raw = JSON.stringify({ event: "charge.success", data: { reference: "TF-test" } });
+    const timestamp = Math.floor(Date.now() / 1000);
+    const signature = crypto.createHmac("sha512", secret).update(`${timestamp}.`).update(raw).digest("hex");
+    const header = `t=${timestamp},v1=whk_test:${signature}`;
+
+    assert.equal(verifyWebhookSignature(raw, secret, { "paystack-signature": header }), true);
+    const stale = `t=${timestamp - 400},v1=whk_test:${signature}`;
+    assert.equal(verifyWebhookSignature(raw, secret, { "paystack-signature": stale }), false);
+    assert.equal(verifyWebhookSignature(raw, secret, { "x-paystack-signature": signature }), false);
   });
 });

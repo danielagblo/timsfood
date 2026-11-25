@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Checkout | Tims Foods</title>
-  <meta name="description" content="Checkout. Orders are saved online; payment is on delivery.">
+  <meta name="description" content="Checkout. Pay on delivery or pay online securely with Paystack.">
   <meta name="theme-color" content="#0e5a39">
   <link rel="icon" href="assets/logo.png" type="image/png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -117,13 +117,25 @@
           </section>
           <section class="checkout-card">
             <h2>Payment</h2>
-            <div class="pay-choice" aria-pressed="true">
-              <strong>Pay on delivery</strong>
-              <span>Cash or MoMo when your jars arrive. Nothing is charged online.</span>
+            <div class="pay-options">
+              <label class="pay-option">
+                <input type="radio" name="paymentMethod" value="delivery" checked>
+                <span>
+                  <strong>Pay on delivery</strong>
+                  <small>Cash or MoMo when your jars arrive. Nothing is charged online.</small>
+                </span>
+              </label>
+              <label class="pay-option">
+                <input type="radio" name="paymentMethod" value="paystack">
+                <span>
+                  <strong>Pay with Paystack</strong>
+                  <small>Card or mobile money on Paystack’s secure checkout. Your order is saved first, then marked paid.</small>
+                </span>
+              </label>
             </div>
           </section>
           <p class="form-error" data-form-error hidden></p>
-          <button class="btn btn-full" type="submit">Place order</button>
+          <button class="btn btn-full" type="submit" data-submit-label>Place order</button>
         </form>
         <aside class="summary" id="summary" aria-label="Order summary"></aside>
       </div>

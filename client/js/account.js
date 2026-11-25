@@ -84,12 +84,18 @@
       const lines = order.items.map((item) => `
         <li><span>${escapeHtml(item.name)} · ×${item.qty}</span><span>${money(item.price * item.qty)}</span></li>
       `).join("");
+      const payment = order.payment || {};
+      const payLabel = payment.method === "paystack"
+        ? (payment.status === "paid" ? "Paid" : payment.status === "failed" ? "Payment failed" : "Awaiting payment")
+        : "Pay on delivery";
+      const payClass = payment.status === "paid" ? "is-paid" : "is-unpaid";
       return `
         <article class="order-card">
           <header>
             <div>
               <p class="checkout-kicker">${escapeHtml(order.createdAt)}</p>
               <h3>${escapeHtml(order.ref)}</h3>
+              <span class="payment-chip ${payClass}">${payLabel}</span>
             </div>
             <span class="order-status">${escapeHtml(order.status)}</span>
           </header>
