@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Shop | Tims Foods</title>
-  <meta name="description" content="Browse TIMS NMC porridge mixes, flour, koko and corn grits. Filter by category and price.">
+  <title>My account | Tims Foods</title>
+  <meta name="description" content="Your Tims Foods profile and saved orders.">
   <meta name="theme-color" content="#0e5a39">
   <link rel="icon" href="assets/logo.png" type="image/png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -12,7 +12,7 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/styles.css">
 </head>
-<body data-page="shop">
+<body data-page="account">
   <a class="skip" href="#main">Skip to content</a>
   <header class="site-header">
     <div class="promo">Packed in Accra · Sealed TIMS NMC jars</div>
@@ -34,8 +34,8 @@
       </nav>
       <div class="nav-tools">
         <form class="search" action="shop.html" method="get" role="search">
-          <label class="sr" for="q-shop">Search products</label>
-          <input id="q-shop" name="q" data-search placeholder="Search products">
+          <label class="sr" for="q-account">Search products</label>
+          <input id="q-account" name="q" placeholder="Search products">
           <button type="submit" aria-label="Search">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
           </button>
@@ -48,30 +48,38 @@
     </div>
     </div>
   </header>
-  <main id="main" class="wrap">
+  <main id="main" class="wrap account-page">
     <header class="page-hero">
-      <p class="crumb"><a href="index.html">Home</a> / Shop</p>
-      <h1>All products</h1>
+      <p class="crumb"><a href="index.html">Home</a> / Account</p>
+      <h1>My account</h1>
     </header>
-    <div class="shop-layout">
-      <aside class="filters">
-        <h2>Filters</h2>
-        <div id="chips" class="chips" role="toolbar" aria-label="Filter products"></div>
-      </aside>
-      <div>
-        <div class="shop-bar">
-          <p class="count-line" id="shop-count"></p>
-          <label class="sort">
-            <span>Sort</span>
-            <select id="sort">
-              <option value="featured">Featured</option>
-              <option value="price-asc">Price: low to high</option>
-              <option value="price-desc">Price: high to low</option>
-            </select>
-          </label>
+
+    <p id="account-loading" class="quiet">Loading your account…</p>
+
+    <div id="account-signed-out" class="checkout-empty" hidden>
+      <p class="checkout-badge">Sign in required</p>
+      <h1>See your orders here</h1>
+      <p class="lede">Sign in to view your saved orders and delivery details.</p>
+      <a class="btn" href="login.html">Sign in</a>
+    </div>
+
+    <div id="account-content" hidden>
+      <section class="account-profile checkout-card">
+        <div>
+          <p class="checkout-kicker">Signed in as</p>
+          <h2 id="account-name"></h2>
+          <p class="quiet" id="account-email"></p>
         </div>
-        <div class="product-grid" id="shop-grid"></div>
-      </div>
+        <button type="button" class="text-btn" id="logout-btn">Sign out</button>
+      </section>
+
+      <section class="account-orders">
+        <div class="section-head">
+          <h2>Order history</h2>
+          <a class="text-link" href="shop.html">Shop the range →</a>
+        </div>
+        <div id="order-list" class="order-list"></div>
+      </section>
     </div>
   </main>
   <footer class="footer">
@@ -105,7 +113,9 @@
     </div>
   </footer>
   <script src="js/catalog.js"></script>
+  <script src="js/config.js"></script>
   <script src="js/api.js"></script>
   <script src="js/site.js"></script>
+  <script src="js/account.js"></script>
 </body>
 </html>

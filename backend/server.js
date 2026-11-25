@@ -6,11 +6,19 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const { initDb, rowToProduct } = require("./db/database");
 
-const root = path.resolve(__dirname);
+const root = path.resolve(process.env.CLIENT_DIR || path.join(__dirname, "..", "client"));
 const port = Number(process.env.PORT) || 5173;
 const host = process.env.HOST || "127.0.0.1";
 const sessionDays = 30;
 const maxBodyBytes = 64 * 1024;
+const clientOrigin = (process.env.CLIENT_ORIGIN || "").trim();
+const crossSite = process.env.COOKIE_SAME_SITE === "None";
+const cookieFlags = [
+  "HttpOnly",
+  `SameSite=${crossSite ? "None" : "Lax"}`,
+  "Path=/",
+  crossSite ? "Secure" : ""
+].filter(Boolean).join("; ");
 
 const types = {
   ".html": "text/html; charset=utf-8",
@@ -38,6 +46,19 @@ function sendJson(res, status, payload) {
     "Cache-Control": "no-store"
   });
   res.end(body);
+}
+
+function corsHeaders(req) {
+  if (!clientOrigin) return null;
+  const origin = req.headers.origin;
+  if (!origin || origin !== clientOrigin) return null;
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Credentials": "true",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+    Vary: "Origin"
+  };
 }
 
 function fail(res, status, message) {
@@ -162,7 +183,7 @@ async function startSession(res, userId) {
   await db.run("INSERT INTO sessions (token, user_id) VALUES (?, ?)", [token, userId]);
   res.setHeader(
     "Set-Cookie",
-    `tims_session=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${sessionDays * 86400}`
+    `tims_session=${token}; ${cookieFlags}; Max-Age=${sessionDays * 86400}`
   );
 }
 
@@ -171,7 +192,7 @@ async function endSession(req, res) {
   if (token) await db.run("DELETE FROM sessions WHERE token = ?", [token]);
   res.setHeader(
     "Set-Cookie",
-    "tims_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0"
+    `tims_session=; ${cookieFlags}; Max-Age=0`
   );
 }
 
@@ -705,52 +726,83 @@ function serveStatic(req, res, pathname, method) {
 
 /* ---------- server ---------- */
 
-async function main() {
-  const initialized = await initDb();
-  db = initialized.db;
-  config = initialized.config;
-  const createdAdmin = await ensureAdmin();
+let ready;
 
-  http.createServer((req, res) => {
-    Promise.resolve().then(async () => {
-      const url = new URL(req.url || "/", `http://${host}:${port}`);
-      let pathname;
-      try {
-        pathname = decodeURIComponent(url.pathname);
-      } catch (_) {
-        pathname = url.pathname;
-      }
-
-      if (pathname.startsWith("/api/")) {
-        try {
-          await handleApi(req, res, url, pathname);
-        } catch (error) {
-          if (res.headersSent) return res.end();
-          const status = error.status && error.status < 500 ? error.status : 500;
-          if (status === 500) console.error(error);
-          return fail(res, status, status === 500 ? "Server error." : error.message);
-        }
-        return;
-      }
-
-      return serveStatic(req, res, pathname, req.method || "GET");
+/** Initialise the database once per process (also safe for serverless warm starts). */
+function init() {
+  if (!ready) {
+    ready = initDb().then(async (initialized) => {
+      db = initialized.db;
+      config = initialized.config;
+      const createdAdmin = await ensureAdmin();
+      return { ...initialized, createdAdmin };
+    }).catch((error) => {
+      ready = null;
+      throw error;
     });
-  }).listen(port, host, () => {
-    console.log(`Tims Foods shop: http://${host}:${port}/`);
+  }
+  return ready;
+}
+
+/** Request handler with no listen() call, so it can also be used by a host or serverless function. */
+async function handler(req, res) {
+  const cors = corsHeaders(req);
+  if (cors) {
+    for (const [key, value] of Object.entries(cors)) res.setHeader(key, value);
+  }
+  if (req.method === "OPTIONS") {
+    res.writeHead(204, { "Content-Length": 0 });
+    return res.end();
+  }
+
+  await init();
+
+  const url = new URL(req.url || "/", `http://${req.headers.host || host}`);
+  let pathname;
+  try {
+    pathname = decodeURIComponent(url.pathname);
+  } catch (_) {
+    pathname = url.pathname;
+  }
+
+  if (pathname.startsWith("/api/")) {
+    try {
+      return await handleApi(req, res, url, pathname);
+    } catch (error) {
+      if (res.headersSent) return res.end();
+      const status = error.status && error.status < 500 ? error.status : 500;
+      if (status === 500) console.error(error);
+      return fail(res, status, status === 500 ? "Server error." : error.message);
+    }
+  }
+
+  return serveStatic(req, res, pathname, req.method || "GET");
+}
+
+async function main() {
+  const initialized = await init();
+  http.createServer(handler).listen(port, host, () => {
+    console.log(`Tims Foods API: http://${host}:${port}/`);
+    console.log(`Client files: ${root}`);
     console.log(`MySQL: ${config.host}:${config.port}/${config.database}`);
+    if (clientOrigin) console.log(`Allowed browser origin: ${clientOrigin}`);
     if (initialized.seededProducts) {
-      console.log(`Seeded ${initialized.seededProducts} products from js/catalog.js`);
+      console.log(`Seeded ${initialized.seededProducts} products from catalog.js`);
     }
     if (initialized.migratedImages) {
       console.log(`Stored ${initialized.migratedImages} product image references in MySQL`);
     }
-    if (createdAdmin) {
+    if (initialized.createdAdmin) {
       console.log(`Created admin account: ${process.env.ADMIN_EMAIL}`);
     }
   });
 }
 
-main().catch((error) => {
-  console.error("Failed to start server:", error);
-  process.exitCode = 1;
-});
+module.exports = { handler, init };
+
+if (require.main === module) {
+  main().catch((error) => {
+    console.error("Failed to start server:", error);
+    process.exitCode = 1;
+  });
+}

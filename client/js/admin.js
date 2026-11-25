@@ -38,7 +38,7 @@
     box.className = "admin-thumbs";
     gallery.forEach((entry) => {
       const img = document.createElement("img");
-      img.src = entry.src;
+      img.src = TF.imageSrc(entry.src);
       img.alt = entry.alt || "Product image";
       img.title = entry.alt || "Product image";
       img.loading = "lazy";
@@ -240,7 +240,7 @@
       const card = document.createElement("figure");
       card.className = "admin-image-card";
       const img = document.createElement("img");
-      img.src = entry.src;
+      img.src = TF.imageSrc(entry.src);
       img.alt = entry.alt || "Product image";
       const remove = document.createElement("button");
       remove.type = "button";

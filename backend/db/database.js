@@ -6,10 +6,13 @@ const vm = require("node:vm");
 const crypto = require("node:crypto");
 const mysql = require("mysql2/promise");
 
-const projectRoot = path.resolve(__dirname, "..");
+const backendRoot = path.resolve(__dirname, "..");
+const clientRoot = path.resolve(backendRoot, "..", "client");
+const catalogPath = process.env.CATALOG_PATH || path.join(backendRoot, "catalog.js");
+const assetsDir = process.env.ASSETS_DIR || path.join(clientRoot, "assets");
 
 try {
-  process.loadEnvFile(path.join(projectRoot, ".env"));
+  process.loadEnvFile(path.join(backendRoot, ".env"));
 } catch (_) {
   /* Real environment variables are also supported. */
 }
@@ -134,9 +137,9 @@ async function seedProducts(db) {
   const row = await db.get("SELECT COUNT(*) AS count FROM products");
   if (Number(row.count) > 0) return 0;
 
-  const source = fs.readFileSync(path.join(projectRoot, "js", "catalog.js"), "utf8");
+  const source = fs.readFileSync(catalogPath, "utf8");
   const sandbox = { window: {} };
-  vm.runInNewContext(source, sandbox, { filename: "js/catalog.js" });
+  vm.runInNewContext(source, sandbox, { filename: catalogPath });
   const products = (sandbox.window.EV && sandbox.window.EV.products) || [];
   if (!products.length) return 0;
 
@@ -195,8 +198,8 @@ async function migrateImages(db) {
         if (entry.imageId) continue;
         const src = String(entry.src || "");
         if (!src.startsWith("assets/")) continue;
-        const file = path.resolve(projectRoot, src);
-        if (!file.startsWith(projectRoot + path.sep)) continue;
+        const file = path.resolve(assetsDir, src.replace(/^assets[\\/]/, ""));
+        if (!file.startsWith(assetsDir + path.sep)) continue;
 
         let data;
         try {
