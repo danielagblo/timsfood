@@ -390,7 +390,9 @@
         <ul class="confirm-lines">${lines}</ul>
         <p class="confirm-total"><span>Total</span><span>${money(order.totals.total)}</span></p>
       </div>
-      <p class="quiet">Payment is on delivery. ${me ? `View it in your <a href="account.html">account</a>.` : "Sign in to keep this order in your history."}</p>
+      <p class="quiet">${order.payment && order.payment.status === "paid"
+        ? "Paid with Paystack."
+        : "Payment is on delivery."} ${me ? `View it in your <a href="account.html">account</a>.` : "Sign in to keep this order in your history."}</p>
       <a class="btn" href="shop.html">Continue shopping</a>`;
     window.scrollTo(0, 0);
   }
@@ -399,6 +401,16 @@
     const form = document.getElementById("checkout-form");
     if (!form) return;
     syncCheckout();
+
+    const choices = [...form.querySelectorAll('input[name="paymentMethod"]')];
+    const button = form.querySelector("[type=submit]");
+    const chosen = () => form.querySelector('input[name="paymentMethod"]:checked')?.value || "delivery";
+    const label = () => chosen() === "paystack" ? "Continue to Paystack" : "Place order";
+    choices.forEach((input) => input.addEventListener("change", () => {
+      if (!button.disabled) button.textContent = label();
+    }));
+    button.textContent = label();
+
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       if (!form.reportValidity()) return;
@@ -407,10 +419,10 @@
         syncCheckout();
         return;
       }
-      const button = form.querySelector("[type=submit]");
+      const paymentMethod = chosen();
       const errorEl = form.querySelector("[data-form-error]");
       button.disabled = true;
-      button.textContent = "Saving order…";
+      button.textContent = paymentMethod === "paystack" ? "Opening Paystack…" : "Saving order…";
       if (errorEl) {
         errorEl.textContent = "";
         errorEl.hidden = true;
@@ -421,9 +433,18 @@
           method: "POST",
           body: {
             ...data,
+            paymentMethod,
             items: cart.map((line) => ({ id: line.id, qty: line.qty }))
           }
         });
+        if (paymentMethod === "paystack") {
+          const payment = await window.TF.request("/api/payments/initialize", {
+            method: "POST",
+            body: { ref: response.order.ref }
+          });
+          window.location.href = payment.authorizationUrl;
+          return;
+        }
         showConfirm(response.order);
       } catch (error) {
         if (errorEl) {
@@ -431,9 +452,58 @@
           errorEl.hidden = false;
         }
         button.disabled = false;
-        button.textContent = "Place order";
+        button.textContent = label();
       }
     });
+  }
+
+  function bindPayment() {
+    const view = document.getElementById("payment-view");
+    if (!view) return;
+    const params = new URLSearchParams(location.search);
+    const reference = params.get("reference") || params.get("trxref") || "";
+    if (!reference) {
+      view.innerHTML = `
+        <p class="checkout-badge">Paystack</p>
+        <h1>No payment reference</h1>
+        <p class="lede">Open the link from Paystack, or return to checkout and try again.</p>
+        <a class="btn" href="checkout.html">Back to checkout</a>`;
+      return;
+    }
+
+    view.innerHTML = `
+      <p class="checkout-badge">Paystack</p>
+      <h1>Checking your payment…</h1>
+      <p class="lede">Please wait while we confirm your order.</p>`;
+
+    window.TF.request(`/api/payments/verify?reference=${encodeURIComponent(reference)}`)
+      .then(({ order }) => {
+        writeCart([]);
+        renderBag();
+        const lines = order.items.map((item) => `
+          <li><span>${escapeHtml(item.name)} · ${escapeHtml(item.format)} × ${item.qty}</span><span>${money(item.price * item.qty)}</span></li>
+        `).join("");
+        view.innerHTML = `
+          <p class="checkout-badge">Payment confirmed · ${escapeHtml(order.ref)}</p>
+          <h1>Thanks, ${escapeHtml(order.data.name)}.</h1>
+          <p class="lede">Your order is paid and ready for dispatch to ${escapeHtml(order.data.city)}.</p>
+          <div class="checkout-card confirm-card">
+            <ul class="confirm-lines">${lines}</ul>
+            <p class="confirm-total"><span>Total</span><span>${money(order.totals.total)}</span></p>
+          </div>
+          <p class="quiet">${me ? `View it in your <a href="account.html">account</a>.` : "Sign in to keep this order in your history."}</p>
+          <a class="btn" href="shop.html">Continue shopping</a>`;
+        window.scrollTo(0, 0);
+      })
+      .catch((error) => {
+        view.innerHTML = `
+          <p class="checkout-badge">Paystack</p>
+          <h1>Payment not confirmed</h1>
+          <p class="lede">${escapeHtml(error.message)}</p>
+          <p class="quiet">If you were charged, refresh this page in a moment. Your order has been saved as pending.</p>
+          <a class="btn" href="checkout.html">Back to checkout</a>`;
+        window.scrollTo(0, 0);
+      });
   }
 
   function setMenu(open) {
@@ -462,6 +532,7 @@
     }
     if (page === "product") renderProduct();
     if (page === "checkout") bindCheckout();
+    if (page === "payment") bindPayment();
   }
 
   document.querySelectorAll("[data-nav]").forEach((link) => {

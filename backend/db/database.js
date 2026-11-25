@@ -92,6 +92,10 @@ const schema = [
      shipping      INT NOT NULL DEFAULT 0,
      total         INT NOT NULL DEFAULT 0,
      status        VARCHAR(20) NOT NULL DEFAULT 'pending',
+      payment_method    VARCHAR(20) NOT NULL DEFAULT 'delivery',
+      payment_status    VARCHAR(20) NOT NULL DEFAULT 'unpaid',
+      payment_reference VARCHAR(100) NULL,
+      paid_at           DATETIME NULL,
      created_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
      KEY idx_orders_user (user_id, id),
      CONSTRAINT fk_orders_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
@@ -304,6 +308,24 @@ async function initDb() {
   );
   if (!adminColumns.length) {
     await pool.query("ALTER TABLE users ADD COLUMN is_admin TINYINT(1) NOT NULL DEFAULT 0");
+  }
+
+  // Payment columns for databases created before Paystack support existed.
+  const paymentColumns = [
+    ["payment_method", "VARCHAR(20) NOT NULL DEFAULT 'delivery'"],
+    ["payment_status", "VARCHAR(20) NOT NULL DEFAULT 'unpaid'"],
+    ["payment_reference", "VARCHAR(100) NULL"],
+    ["paid_at", "DATETIME NULL"]
+  ];
+  for (const [column, definition] of paymentColumns) {
+    const [rows] = await pool.query(
+      `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'orders' AND COLUMN_NAME = ?`,
+      [database, column]
+    );
+    if (!rows.length) {
+      await pool.query(`ALTER TABLE \`orders\` ADD COLUMN \`${column}\` ${definition}`);
+    }
   }
 
   const db = {

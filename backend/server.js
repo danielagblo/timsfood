@@ -20,6 +20,11 @@ const cookieFlags = [
   crossSite ? "Secure" : ""
 ].filter(Boolean).join("; ");
 
+const paystackSecret = (process.env.PAYSTACK_SECRET_KEY || "").trim();
+const paystackWebhookSecret = (process.env.PAYSTACK_WEBHOOK_SECRET || "").trim();
+const paystackApi = (process.env.PAYSTACK_API_BASE || "https://api.paystack.co").replace(/\/$/, "");
+const paystackCurrency = (process.env.PAYSTACK_CURRENCY || "GHS").toUpperCase();
+
 const types = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
@@ -65,7 +70,7 @@ function fail(res, status, message) {
   sendJson(res, status, { error: message });
 }
 
-async function readBody(req, maxBytes = maxBodyBytes) {
+async function readRawBody(req, maxBytes = maxBodyBytes) {
   const chunks = [];
   let size = 0;
   for await (const chunk of req) {
@@ -77,9 +82,14 @@ async function readBody(req, maxBytes = maxBodyBytes) {
     }
     chunks.push(chunk);
   }
-  if (!chunks.length) return {};
+  return Buffer.concat(chunks).toString("utf8");
+}
+
+async function readBody(req, maxBytes = maxBodyBytes) {
+  const raw = await readRawBody(req, maxBytes);
+  if (!raw) return {};
   try {
-    const parsed = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error();
     return parsed;
   } catch (_) {
@@ -240,8 +250,63 @@ async function getOrder(id) {
       sub: Number(row.subtotal),
       transit: Number(row.shipping),
       total: Number(row.total)
+    },
+    payment: {
+      method: row.payment_method || "delivery",
+      status: row.payment_status || "unpaid",
+      reference: row.payment_reference || "",
+      paidAt: row.paid_at
+        ? (row.paid_at instanceof Date ? row.paid_at.toISOString() : String(row.paid_at))
+        : null
     }
   };
+}
+
+/* ---------- Paystack ---------- */
+
+async function paystackRequest(method, endpoint, body) {
+  const response = await fetch(`${paystackApi}${endpoint}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${paystackSecret}`,
+      "Content-Type": "application/json"
+    },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  let data = null;
+  try {
+    data = await response.json();
+  } catch (_) {
+    /* Non-JSON response. */
+  }
+  if (!response.ok || !data || data.status === false) {
+    const message = data && (data.message ||
+      (Array.isArray(data.errors) && data.errors[0] && data.errors[0].message));
+    const error = new Error(message || `Paystack request failed (${response.status}).`);
+    error.status = 502;
+    throw error;
+  }
+  return data.data;
+}
+
+function paymentCallbackBase(req) {
+  if (clientOrigin) return clientOrigin.replace(/\/$/, "");
+  const configured = (process.env.PAYSTACK_CALLBACK_BASE || "").trim();
+  if (configured) return configured.replace(/\/$/, "");
+  const proto = String(req.headers["x-forwarded-proto"] || "http").split(",")[0].trim();
+  return `${proto}://${req.headers.host}`;
+}
+
+function paymentMatchesOrder(data, order) {
+  return Boolean(
+    data && data.status === "success" &&
+    Number(data.amount) === Number(order.total) * 100 &&
+    String(data.currency || "").toUpperCase() === paystackCurrency
+  );
+}
+
+async function markOrderPaid(id) {
+  await db.run("UPDATE `orders` SET payment_status = 'paid', paid_at = NOW() WHERE id = ?", [id]);
 }
 
 /* ---------- API ---------- */
@@ -340,6 +405,7 @@ async function handleApi(req, res, url, pathname) {
   // Place an order (guest or signed in)
   if (pathname === "/api/orders" && method === "POST") {
     const body = await readBody(req);
+    const paymentMethod = text(body.paymentMethod, 20) === "paystack" ? "paystack" : "delivery";
     const rawItems = Array.isArray(body.items) ? body.items : [];
     if (rawItems.length === 0 || rawItems.length > 50) {
       return fail(res, 400, "Your cart must contain at least one item.");
@@ -400,12 +466,12 @@ async function handleApi(req, res, url, pathname) {
       const [result] = await connection.execute(`
         INSERT INTO \`orders\`
           (ref, user_id, customer_name, email, phone, address, city, region,
-           country, note, subtotal, shipping, total)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           country, note, subtotal, shipping, total, payment_method)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
         ref, user ? user.id : null, customer.name, customer.email, customer.phone,
         customer.address, customer.city, customer.region, customer.country, customer.note,
-        subtotal, shipping, subtotal + shipping
+        subtotal, shipping, subtotal + shipping, paymentMethod
       ]);
       orderId = Number(result.insertId);
       for (const line of lines) {
@@ -447,6 +513,92 @@ async function handleApi(req, res, url, pathname) {
     return sendJson(res, 200, { order: await getOrder(row.id) });
   }
 
+  /* ---------- payments ---------- */
+
+  if (pathname === "/api/payments/initialize" && method === "POST") {
+    if (!paystackSecret) return fail(res, 400, "Paystack is not configured on the server.");
+    const body = await readBody(req);
+    const ref = text(body.ref, 40);
+    if (!ref) return fail(res, 400, "Order reference is required.");
+    const row = await db.get("SELECT * FROM `orders` WHERE ref = ?", [ref]);
+    if (!row) return fail(res, 404, "Order not found.");
+    const user = await currentUser(req);
+    if (row.user_id && (!user || Number(user.id) !== Number(row.user_id))) {
+      return fail(res, 403, "This order belongs to another account.");
+    }
+    if (row.payment_method !== "paystack") {
+      return fail(res, 400, "This order is set to pay on delivery.");
+    }
+    if (row.payment_status === "paid") return fail(res, 400, "This order is already paid.");
+
+    const reference = `${row.ref}-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
+    const data = await paystackRequest("POST", "/transaction/initialize", {
+      email: row.email,
+      amount: Number(row.total) * 100,
+      currency: paystackCurrency,
+      reference,
+      callback_url: `${paymentCallbackBase(req)}/payment.html`,
+      metadata: {
+        order_ref: row.ref,
+        custom_fields: [{ display_name: "Order", variable_name: "order_ref", value: row.ref }]
+      }
+    });
+    if (!data || !data.authorization_url) {
+      return fail(res, 502, "Paystack did not return a checkout URL.");
+    }
+    await db.run(
+      "UPDATE `orders` SET payment_reference = ?, payment_status = 'awaiting_payment' WHERE id = ?",
+      [reference, row.id]
+    );
+    return sendJson(res, 200, { authorizationUrl: data.authorization_url, reference });
+  }
+
+  if (pathname === "/api/payments/verify" && method === "GET") {
+    if (!paystackSecret) return fail(res, 400, "Paystack is not configured on the server.");
+    const reference = text(url.searchParams.get("reference") || url.searchParams.get("trxref"), 100);
+    if (!reference) return fail(res, 400, "Payment reference is required.");
+    const row = await db.get("SELECT * FROM `orders` WHERE payment_reference = ?", [reference]);
+    if (!row) return fail(res, 404, "Payment reference not found.");
+
+    const data = await paystackRequest("GET", `/transaction/verify/${encodeURIComponent(reference)}`);
+    if (!paymentMatchesOrder(data, row)) {
+      await db.run(
+        "UPDATE `orders` SET payment_status = 'failed' WHERE id = ? AND payment_status <> 'paid'",
+        [row.id]
+      );
+      return fail(res, 400, "Payment was not completed. Please try again.");
+    }
+    await markOrderPaid(row.id);
+    return sendJson(res, 200, { status: "paid", order: await getOrder(row.id) });
+  }
+
+  if (pathname === "/api/payments/webhook" && method === "POST") {
+    if (!paystackWebhookSecret) return fail(res, 503, "Paystack webhook is not configured.");
+    const raw = await readRawBody(req);
+    const signature = String(req.headers["x-paystack-signature"] || "");
+    const expected = crypto.createHmac("sha512", paystackWebhookSecret).update(raw).digest("hex");
+    if (signature.length !== expected.length ||
+        !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
+      return fail(res, 400, "Invalid webhook signature.");
+    }
+    let payload;
+    try {
+      payload = JSON.parse(raw);
+    } catch (_) {
+      return fail(res, 400, "Invalid webhook payload.");
+    }
+    if (payload.event === "charge.success") {
+      const reference = text(payload.data && payload.data.reference, 100);
+      const row = reference
+        ? await db.get("SELECT * FROM `orders` WHERE payment_reference = ?", [reference])
+        : null;
+      if (row && Number(payload.data.amount) === Number(row.total) * 100) {
+        await markOrderPaid(row.id);
+      }
+    }
+    return sendJson(res, 200, { received: true });
+  }
+
   /* ---------- admin ---------- */
   if (pathname.startsWith("/api/admin/")) {
     const admin = await requireAdmin(req, res);
@@ -455,7 +607,12 @@ async function handleApi(req, res, url, pathname) {
     if (pathname === "/api/admin/summary" && method === "GET") {
       const products = await db.get("SELECT COUNT(*) AS count FROM products");
       const active = await db.get("SELECT COUNT(*) AS count FROM products WHERE active = 1");
-      const orders = await db.get("SELECT COUNT(*) AS count, COALESCE(SUM(total), 0) AS revenue FROM `orders`");
+      const orders = await db.get(
+        `SELECT COUNT(*) AS count,
+                COALESCE(SUM(CASE WHEN payment_method = 'delivery' OR payment_status = 'paid'
+                                  THEN total ELSE 0 END), 0) AS revenue
+         FROM \`orders\``
+      );
       const users = await db.get("SELECT COUNT(*) AS count FROM users");
       const images = await db.get("SELECT COUNT(*) AS count FROM images");
       const recent = await db.all(`
