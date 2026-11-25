@@ -356,6 +356,9 @@
       link.textContent = user ? "Account" : "Sign in";
       link.setAttribute("href", user ? "account.html" : "login.html");
     });
+    document.querySelectorAll("[data-admin-link]").forEach((link) => {
+      link.hidden = !user || !user.isAdmin;
+    });
     document.querySelectorAll("[data-auth-note]").forEach((note) => {
       note.textContent = user
         ? `Signed in as ${user.name} — this order will be saved to your account.`

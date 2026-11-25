@@ -3,20 +3,54 @@
 const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const { spawn } = require("node:child_process");
-const fs = require("node:fs");
-const os = require("node:os");
 const path = require("node:path");
+const mysql = require("mysql2/promise");
 
 const root = path.resolve(__dirname, "..");
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "timsfood-api-"));
-const dbPath = path.join(tmp, "timsfood.db");
+try {
+  process.loadEnvFile(path.join(root, ".env"));
+} catch (_) {
+  /* Real environment variables are also supported. */
+}
+
+const testDb = `timsfood_test_${process.pid}`;
 const port = 5199;
 const base = `http://127.0.0.1:${port}`;
+const dbConnection = {
+  host: process.env.DB_HOST || "127.0.0.1",
+  port: Number(process.env.DB_PORT) || 3306,
+  user: process.env.DB_USER || "root",
+  password: process.env.DB_PASSWORD || ""
+};
 
 let child;
 
+async function withAdmin(action) {
+  const admin = await mysql.createConnection(dbConnection);
+  try {
+    await action(admin);
+  } finally {
+    await admin.end();
+  }
+}
+
+async function resetTestDatabase() {
+  await withAdmin(async (admin) => {
+    await admin.query(`DROP DATABASE IF EXISTS \`${testDb}\``);
+    await admin.query(
+      `CREATE DATABASE \`${testDb}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
+    );
+  });
+}
+
+async function dropTestDatabase() {
+  await withAdmin(async (admin) => {
+    await admin.query(`DROP DATABASE IF EXISTS \`${testDb}\``);
+  });
+}
+
 async function waitForServer() {
-  for (let attempt = 0; attempt < 80; attempt += 1) {
+  for (let attempt = 0; attempt < 600; attempt += 1) {
     try {
       const response = await fetch(`${base}/api/products`);
       if (response.ok) return;
@@ -31,7 +65,7 @@ async function waitForServer() {
 async function startServer() {
   child = spawn(process.execPath, [path.join(root, "server.js")], {
     cwd: root,
-    env: { ...process.env, PORT: String(port), DB_PATH: dbPath },
+    env: { ...process.env, PORT: String(port), DB_NAME: testDb },
     stdio: ["ignore", "pipe", "pipe"]
   });
   child.stderr.on("data", (chunk) => process.stderr.write(chunk));
@@ -86,16 +120,17 @@ const delivery = {
 };
 
 before(async () => {
+  await resetTestDatabase();
   await startServer();
 });
 
 after(async () => {
   await stopServer();
-  fs.rmSync(tmp, { recursive: true, force: true });
+  await dropTestDatabase();
 });
 
 test("API serves seeded products and protects private files", async (t) => {
-  await t.test("product list comes from the database", async () => {
+  await t.test("product list comes from MySQL", async () => {
     const response = await fetch(`${base}/api/products`);
     assert.equal(response.status, 200);
     const { products } = await response.json();
@@ -111,7 +146,7 @@ test("API serves seeded products and protects private files", async (t) => {
     assert.ok(new Set(entries.map((entry) => entry.imageId)).size < entries.length);
   });
 
-  await t.test("product images are served from the database", async () => {
+  await t.test("product images are served from MySQL", async () => {
     const { products } = await (await fetch(`${base}/api/products`)).json();
     const src = products.find((product) => product.id === "soy-powder").gallery[0].src;
     const image = await fetch(base + src);
@@ -132,9 +167,11 @@ test("API serves seeded products and protects private files", async (t) => {
     assert.equal(missing.status, 404);
   });
 
-  await t.test("database files cannot be downloaded", async () => {
-    const response = await fetch(`${base}/data/timsfood.db`);
-    assert.equal(response.status, 403);
+  await t.test("source and env files cannot be downloaded", async () => {
+    for (const endpoint of ["/db/database.js", "/.env"]) {
+      const response = await fetch(base + endpoint);
+      assert.equal(response.status, 403);
+    }
   });
 });
 
@@ -269,5 +306,112 @@ test("orders are saved with server-side prices", async (t) => {
     const { orders } = await response.json();
     assert.equal(orders.length, 1);
     assert.equal(orders[0].items[0].id, "rice-flour");
+  });
+});
+
+test("admin portal manages the shop", async (t) => {
+  const admin = cookieJar();
+
+  await t.test("admin account exists and is protected", async () => {
+    let response = await admin.request("/api/admin/summary");
+    assert.equal(response.status, 401);
+
+    response = await admin.request("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: process.env.ADMIN_EMAIL,
+        password: process.env.ADMIN_PASSWORD
+      })
+    });
+    assert.equal(response.status, 200);
+    assert.equal(response.body.user.isAdmin, true);
+
+    const customer = cookieJar();
+    await customer.request("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "ama@example.com", password: "securepassword" })
+    });
+    response = await customer.request("/api/admin/summary");
+    assert.equal(response.status, 403);
+  });
+
+  await t.test("dashboard reports database totals", async () => {
+    const { products } = await (await fetch(`${base}/api/products`)).json();
+    const uniqueImages = new Set(products.flatMap((p) => p.gallery.map((g) => g.imageId))).size;
+
+    const response = await admin.request("/api/admin/summary");
+    assert.equal(response.status, 200);
+    assert.equal(response.body.summary.products, 20);
+    assert.equal(response.body.summary.images, uniqueImages);
+    assert.ok(response.body.summary.orders >= 1);
+    assert.ok(response.body.recentOrders.length >= 1);
+  });
+
+  await t.test("products can be created, edited and removed", async () => {
+    let response = await admin.request("/api/admin/products", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: "testjar", name: "Test Jar", format: "Small jar",
+        variety: "Porridge mixes", category: "Porridge", price: 25
+      })
+    });
+    assert.equal(response.status, 201);
+    assert.equal(response.body.product.price, 25);
+
+    response = await admin.request("/api/admin/products/testjar", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ price: 31, active: false })
+    });
+    assert.equal(response.status, 200);
+    assert.equal(response.body.product.price, 31);
+    assert.equal(response.body.product.active, false);
+
+    response = await admin.request("/api/admin/products/testjar/image", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        data: Buffer.from("89504e470d0a1a0a0000000d49484452", "hex").toString("base64"),
+        mime: "image/png",
+        filename: "testjar.png"
+      })
+    });
+    assert.equal(response.status, 201);
+    assert.equal(response.body.gallery.length, 1);
+
+    response = await admin.request("/api/admin/images");
+    assert.equal(response.status, 200);
+    assert.ok(response.body.images.some((image) => image.filename === "testjar.png"));
+    assert.ok(response.body.images.some((image) => image.src.startsWith("/api/images/")));
+
+    response = await admin.request("/api/admin/products/testjar", { method: "DELETE" });
+    assert.equal(response.status, 200);
+    response = await fetch(`${base}/api/products/testjar`);
+    assert.equal(response.status, 404);
+  });
+
+  await t.test("orders and customers are visible, statuses can change", async () => {
+    let response = await admin.request("/api/admin/orders");
+    assert.equal(response.status, 200);
+    assert.ok(response.body.orders.length >= 1);
+    assert.equal(response.body.orders[0].userEmail, "ama@example.com");
+
+    const ref = response.body.orders[0].ref;
+    response = await admin.request(`/api/admin/orders/${encodeURIComponent(ref)}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "shipped" })
+    });
+    assert.equal(response.status, 200);
+
+    response = await admin.request("/api/admin/orders");
+    assert.equal(response.body.orders[0].status, "shipped");
+
+    response = await admin.request("/api/admin/users");
+    assert.equal(response.status, 200);
+    assert.ok(response.body.users.some((user) => user.email === process.env.ADMIN_EMAIL && user.isAdmin));
   });
 });

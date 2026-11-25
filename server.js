@@ -4,7 +4,7 @@ const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
-const { db, dbPath, seededProducts, migratedImages, rowToProduct } = require("./db/database");
+const { initDb, rowToProduct } = require("./db/database");
 
 const root = path.resolve(__dirname);
 const port = Number(process.env.PORT) || 5173;
@@ -25,6 +25,9 @@ const types = {
   ".ico": "image/x-icon"
 };
 
+let db;
+let config;
+
 /* ---------- shared helpers ---------- */
 
 function sendJson(res, status, payload) {
@@ -41,12 +44,12 @@ function fail(res, status, message) {
   sendJson(res, status, { error: message });
 }
 
-async function readBody(req) {
+async function readBody(req, maxBytes = maxBodyBytes) {
   const chunks = [];
   let size = 0;
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > maxBodyBytes) {
+    if (size > maxBytes) {
       const error = new Error("Request is too large.");
       error.status = 413;
       throw error;
@@ -102,35 +105,70 @@ function cookieValue(req, name) {
 
 function publicUser(row) {
   if (!row) return null;
-  return { id: row.id, name: row.name, email: row.email, city: row.city };
+  return {
+    id: Number(row.id),
+    name: row.name,
+    email: row.email,
+    city: row.city,
+    isAdmin: Boolean(row.is_admin)
+  };
 }
 
-function currentUser(req) {
+async function currentUser(req) {
   const token = cookieValue(req, "tims_session");
   if (!token) return null;
-  const row = db.prepare(`
-    SELECT u.id, u.name, u.email, u.city
+  const row = await db.get(`
+    SELECT u.id, u.name, u.email, u.city, u.is_admin
     FROM sessions s
     JOIN users u ON u.id = s.user_id
-    WHERE s.token = ? AND s.expires_at > ?
-  `).get(token, new Date().toISOString());
+    WHERE s.token = ? AND s.expires_at > NOW()
+  `, [token]);
   return publicUser(row);
 }
 
-function startSession(res, userId) {
+async function requireAdmin(req, res) {
+  const user = await currentUser(req);
+  if (!user) {
+    fail(res, 401, "Sign in to continue.");
+    return null;
+  }
+  if (!user.isAdmin) {
+    fail(res, 403, "Admin access required.");
+    return null;
+  }
+  return user;
+}
+
+/** Create or promote the bootstrap admin from env on first start. */
+async function ensureAdmin() {
+  const email = (process.env.ADMIN_EMAIL || "").trim().toLowerCase();
+  const password = process.env.ADMIN_PASSWORD || "";
+  if (!email || !password) return false;
+
+  const existing = await db.get("SELECT id FROM users WHERE email = ?", [email]);
+  if (existing) {
+    await db.run("UPDATE users SET is_admin = 1 WHERE id = ?", [existing.id]);
+    return false;
+  }
+  await db.run(
+    "INSERT INTO users (name, email, password_hash, city, is_admin) VALUES (?, ?, ?, ?, 1)",
+    ["Administrator", email, hashPassword(password), ""]
+  );
+  return true;
+}
+
+async function startSession(res, userId) {
   const token = crypto.randomBytes(32).toString("hex");
-  const expiresAt = new Date(Date.now() + sessionDays * 86400000).toISOString();
-  db.prepare("INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)")
-    .run(token, userId, expiresAt);
+  await db.run("INSERT INTO sessions (token, user_id) VALUES (?, ?)", [token, userId]);
   res.setHeader(
     "Set-Cookie",
     `tims_session=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${sessionDays * 86400}`
   );
 }
 
-function endSession(req, res) {
+async function endSession(req, res) {
   const token = cookieValue(req, "tims_session");
-  if (token) db.prepare("DELETE FROM sessions WHERE token = ?").run(token);
+  if (token) await db.run("DELETE FROM sessions WHERE token = ?", [token]);
   res.setHeader(
     "Set-Cookie",
     "tims_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0"
@@ -139,33 +177,33 @@ function endSession(req, res) {
 
 /* ---------- orders ---------- */
 
-function newReference() {
+async function newReference() {
   const year = new Date().getFullYear().toString().slice(2);
   for (let attempt = 0; attempt < 10; attempt += 1) {
     const ref = `TF-${year}-${crypto.randomInt(1000, 10000)}`;
-    if (!db.prepare("SELECT 1 FROM orders WHERE ref = ?").get(ref)) return ref;
+    if (!(await db.get("SELECT 1 FROM `orders` WHERE ref = ?", [ref]))) return ref;
   }
   return `TF-${year}-${crypto.randomBytes(6).toString("hex").toUpperCase()}`;
 }
 
-function getOrder(id) {
-  const row = db.prepare("SELECT * FROM orders WHERE id = ?").get(id);
+async function getOrder(id) {
+  const row = await db.get("SELECT * FROM `orders` WHERE id = ?", [id]);
   if (!row) return null;
-  const items = db.prepare(`
+  const items = await db.all(`
     SELECT product_id, name, format, qty, unit_price
     FROM order_items WHERE order_id = ? ORDER BY id
-  `).all(id);
+  `, [id]);
   return {
-    id: row.id,
+    id: Number(row.id),
     ref: row.ref,
     status: row.status,
-    createdAt: row.created_at,
+    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
     items: items.map((item) => ({
       id: item.product_id,
       name: item.name,
       format: item.format,
-      qty: item.qty,
-      price: item.unit_price
+      qty: Number(item.qty),
+      price: Number(item.unit_price)
     })),
     data: {
       name: row.customer_name,
@@ -177,7 +215,11 @@ function getOrder(id) {
       country: row.country,
       note: row.note
     },
-    totals: { sub: row.subtotal, transit: row.shipping, total: row.total }
+    totals: {
+      sub: Number(row.subtotal),
+      transit: Number(row.shipping),
+      total: Number(row.total)
+    }
   };
 }
 
@@ -186,14 +228,13 @@ function getOrder(id) {
 async function handleApi(req, res, url, pathname) {
   const method = req.method || "GET";
 
-  // Product images, stored in SQLite as BLOBs
+  // Product images, stored in MySQL as BLOBs
   const imageMatch = pathname.match(/^\/api\/images\/(\d+)$/);
   if (imageMatch && (method === "GET" || method === "HEAD")) {
-    const id = Number(imageMatch[1]);
-    const row = db.prepare("SELECT data, mime FROM images WHERE id = ?").get(id);
+    const row = await db.get("SELECT data, mime FROM images WHERE id = ?", [Number(imageMatch[1])]);
     if (!row) return fail(res, 404, "Image not found.");
     const data = Buffer.from(row.data);
-    const etag = `"img-${id}"`;
+    const etag = `"img-${imageMatch[1]}"`;
     res.writeHead(200, {
       "Content-Type": row.mime,
       "Content-Length": data.length,
@@ -206,7 +247,7 @@ async function handleApi(req, res, url, pathname) {
 
   // Products
   if (pathname === "/api/products" && method === "GET") {
-    let rows = db.prepare("SELECT * FROM products WHERE active = 1 ORDER BY sort_order, id").all();
+    let rows = await db.all("SELECT * FROM products WHERE active = 1 ORDER BY sort_order, id");
     const variety = url.searchParams.get("variety");
     const query = (url.searchParams.get("q") || "").trim().toLowerCase();
     if (variety) rows = rows.filter((row) => row.variety === variety);
@@ -220,8 +261,9 @@ async function handleApi(req, res, url, pathname) {
 
   const productMatch = pathname.match(/^\/api\/products\/([^/]+)$/);
   if (productMatch && method === "GET") {
-    const row = db.prepare("SELECT * FROM products WHERE id = ? AND active = 1")
-      .get(decodeURIComponent(productMatch[1]));
+    const row = await db.get("SELECT * FROM products WHERE id = ? AND active = 1", [
+      decodeURIComponent(productMatch[1])
+    ]);
     if (!row) return fail(res, 404, "Product not found.");
     return sendJson(res, 200, { product: rowToProduct(row) });
   }
@@ -237,15 +279,16 @@ async function handleApi(req, res, url, pathname) {
     if (name.length < 2) return fail(res, 400, "Enter your full name.");
     if (!emailPattern.test(email)) return fail(res, 400, "Enter a valid email address.");
     if (password.length < 8) return fail(res, 400, "Password must be at least 8 characters.");
-    if (db.prepare("SELECT 1 FROM users WHERE email = ?").get(email)) {
+    if (await db.get("SELECT 1 FROM users WHERE email = ?", [email])) {
       return fail(res, 409, "An account with that email already exists.");
     }
 
-    const info = db.prepare(
-      "INSERT INTO users (name, email, password_hash, city) VALUES (?, ?, ?, ?)"
-    ).run(name, email, hashPassword(password), city);
-    const user = { id: Number(info.lastInsertRowid), name, email, city };
-    startSession(res, user.id);
+    const result = await db.run(
+      "INSERT INTO users (name, email, password_hash, city) VALUES (?, ?, ?, ?)",
+      [name, email, hashPassword(password), city]
+    );
+    const user = { id: result.insertId, name, email, city };
+    await startSession(res, user.id);
     return sendJson(res, 201, { user });
   }
 
@@ -254,23 +297,23 @@ async function handleApi(req, res, url, pathname) {
     const body = await readBody(req);
     const email = text(body.email, 120).toLowerCase();
     const password = typeof body.password === "string" ? body.password : "";
-    const row = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
+    const row = await db.get("SELECT * FROM users WHERE email = ?", [email]);
     if (!row || !verifyPassword(password, row.password_hash)) {
       return fail(res, 401, "Incorrect email or password.");
     }
-    startSession(res, row.id);
+    await startSession(res, Number(row.id));
     return sendJson(res, 200, { user: publicUser(row) });
   }
 
   // Logout
   if (pathname === "/api/auth/logout" && method === "POST") {
-    endSession(req, res);
+    await endSession(req, res);
     return sendJson(res, 200, { ok: true });
   }
 
   // Current account
   if (pathname === "/api/me" && method === "GET") {
-    return sendJson(res, 200, { user: currentUser(req) });
+    return sendJson(res, 200, { user: await currentUser(req) });
   }
 
   // Place an order (guest or signed in)
@@ -295,16 +338,17 @@ async function handleApi(req, res, url, pathname) {
 
     const lines = [];
     for (const [id, qty] of quantities) {
-      const product = db.prepare(
-        "SELECT id, name, format, price FROM products WHERE id = ? AND active = 1"
-      ).get(id);
+      const product = await db.get(
+        "SELECT id, name, format, price FROM products WHERE id = ? AND active = 1",
+        [id]
+      );
       if (!product) return fail(res, 400, `Product ${id} is no longer available.`);
       lines.push({
         product_id: product.id,
         name: product.name,
         format: product.format,
         qty,
-        unit_price: product.price
+        unit_price: Number(product.price)
       });
     }
 
@@ -325,60 +369,272 @@ async function handleApi(req, res, url, pathname) {
 
     const subtotal = lines.reduce((sum, line) => sum + line.unit_price * line.qty, 0);
     const shipping = 0;
-    const user = currentUser(req);
-    const ref = newReference();
-
-    db.exec("BEGIN");
+    const user = await currentUser(req);
+    const ref = await newReference();
     let orderId;
+
+    const connection = await db.connection();
     try {
-      const info = db.prepare(`
-        INSERT INTO orders
+      await connection.beginTransaction();
+      const [result] = await connection.execute(`
+        INSERT INTO \`orders\`
           (ref, user_id, customer_name, email, phone, address, city, region,
            country, note, subtotal, shipping, total)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
+      `, [
         ref, user ? user.id : null, customer.name, customer.email, customer.phone,
         customer.address, customer.city, customer.region, customer.country, customer.note,
         subtotal, shipping, subtotal + shipping
-      );
-      orderId = Number(info.lastInsertRowid);
-      const insertItem = db.prepare(`
-        INSERT INTO order_items (order_id, product_id, name, format, qty, unit_price)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `);
+      ]);
+      orderId = Number(result.insertId);
       for (const line of lines) {
-        insertItem.run(orderId, line.product_id, line.name, line.format, line.qty, line.unit_price);
+        await connection.execute(`
+          INSERT INTO order_items (order_id, product_id, name, format, qty, unit_price)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `, [orderId, line.product_id, line.name, line.format, line.qty, line.unit_price]);
       }
-      db.exec("COMMIT");
+      await connection.commit();
     } catch (error) {
-      db.exec("ROLLBACK");
+      await connection.rollback();
       throw error;
+    } finally {
+      connection.release();
     }
 
-    return sendJson(res, 201, { order: getOrder(orderId) });
+    return sendJson(res, 201, { order: await getOrder(orderId) });
   }
 
   // Order history (signed in only)
   if (pathname === "/api/orders" && method === "GET") {
-    const user = currentUser(req);
+    const user = await currentUser(req);
     if (!user) return fail(res, 401, "Sign in to view your orders.");
-    const orders = db.prepare("SELECT id FROM orders WHERE user_id = ? ORDER BY id DESC")
-      .all(user.id)
-      .map((row) => getOrder(row.id));
+    const rows = await db.all("SELECT id FROM `orders` WHERE user_id = ? ORDER BY id DESC", [user.id]);
+    const orders = [];
+    for (const row of rows) orders.push(await getOrder(row.id));
     return sendJson(res, 200, { orders });
   }
 
   const orderMatch = pathname.match(/^\/api\/orders\/([^/]+)$/);
   if (orderMatch && method === "GET") {
-    const user = currentUser(req);
+    const user = await currentUser(req);
     if (!user) return fail(res, 401, "Sign in to view this order.");
-    const row = db.prepare("SELECT id FROM orders WHERE ref = ? AND user_id = ?")
-      .get(decodeURIComponent(orderMatch[1]), user.id);
+    const row = await db.get("SELECT id FROM `orders` WHERE ref = ? AND user_id = ?", [
+      decodeURIComponent(orderMatch[1]),
+      user.id
+    ]);
     if (!row) return fail(res, 404, "Order not found.");
-    return sendJson(res, 200, { order: getOrder(row.id) });
+    return sendJson(res, 200, { order: await getOrder(row.id) });
+  }
+
+  /* ---------- admin ---------- */
+  if (pathname.startsWith("/api/admin/")) {
+    const admin = await requireAdmin(req, res);
+    if (!admin) return;
+
+    if (pathname === "/api/admin/summary" && method === "GET") {
+      const products = await db.get("SELECT COUNT(*) AS count FROM products");
+      const active = await db.get("SELECT COUNT(*) AS count FROM products WHERE active = 1");
+      const orders = await db.get("SELECT COUNT(*) AS count, COALESCE(SUM(total), 0) AS revenue FROM `orders`");
+      const users = await db.get("SELECT COUNT(*) AS count FROM users");
+      const images = await db.get("SELECT COUNT(*) AS count FROM images");
+      const recent = await db.all(`
+        SELECT o.id, o.ref, o.customer_name, o.total, o.status, o.created_at
+        FROM \`orders\` o ORDER BY o.id DESC LIMIT 5
+      `);
+      return sendJson(res, 200, {
+        summary: {
+          products: Number(products.count),
+          activeProducts: Number(active.count),
+          orders: Number(orders.count),
+          revenue: Number(orders.revenue),
+          users: Number(users.count),
+          images: Number(images.count)
+        },
+        recentOrders: recent.map((row) => ({
+          ref: row.ref,
+          name: row.customer_name,
+          total: Number(row.total),
+          status: row.status,
+          createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at)
+        }))
+      });
+    }
+
+    if (pathname === "/api/admin/products" && method === "GET") {
+      const rows = await db.all("SELECT * FROM products ORDER BY sort_order, id");
+      return sendJson(res, 200, { products: rows.map(rowToProduct) });
+    }
+
+    if (pathname === "/api/admin/products" && method === "POST") {
+      const body = await readBody(req);
+      const normalized = normalizeProduct(body, true);
+      if (normalized.error) return fail(res, 400, normalized.error);
+      const values = normalized.product;
+      const columns = Object.keys(values);
+      await db.run(
+        `INSERT INTO products (${columns.join(", ")}) VALUES (${columns.map(() => "?").join(", ")})`,
+        columns.map((key) => values[key])
+      );
+      return sendJson(res, 201, { product: rowToProduct(await db.get("SELECT * FROM products WHERE id = ?", [values.id])) });
+    }
+
+    const imageUpload = pathname.match(/^\/api\/admin\/products\/([^/]+)\/image$/);
+    if (imageUpload && method === "POST") {
+      const id = decodeURIComponent(imageUpload[1]);
+      const product = await db.get("SELECT id, gallery FROM products WHERE id = ?", [id]);
+      if (!product) return fail(res, 404, "Product not found.");
+      const body = await readBody(req, 25 * 1024 * 1024);
+      const base64 = String(body.data || "");
+      const data = Buffer.from(base64, "base64");
+      const allowed = ["image/png", "image/jpeg", "image/webp"];
+      const mime = allowed.includes(body.mime) ? body.mime : "";
+      if (!data.length || data.length > 20 * 1024 * 1024 || !mime) {
+        return fail(res, 400, "Upload a PNG, JPEG or WebP image under 20 MB.");
+      }
+      const checksum = crypto.createHash("sha256").update(data).digest("hex");
+      await db.run(
+        "INSERT IGNORE INTO images (checksum, data, mime, filename) VALUES (?, ?, ?, ?)",
+        [checksum, data, mime, text(body.filename, 200) || "upload.png"]
+      );
+      const image = await db.get("SELECT id FROM images WHERE checksum = ?", [checksum]);
+      let gallery = [];
+      try {
+        gallery = typeof product.gallery === "string" ? JSON.parse(product.gallery) : (product.gallery || []);
+      } catch (_) {
+        gallery = [];
+      }
+      gallery.push({
+        imageId: Number(image.id),
+        src: `/api/images/${image.id}`,
+        alt: text(body.alt, 200) || product.id,
+        focus: "center"
+      });
+      await db.run("UPDATE products SET gallery = ? WHERE id = ?", [JSON.stringify(gallery), id]);
+      return sendJson(res, 201, { imageId: Number(image.id), gallery });
+    }
+
+    const editProduct = pathname.match(/^\/api\/admin\/products\/([^/]+)$/);
+    if (editProduct && (method === "PUT" || method === "PATCH" || method === "DELETE")) {
+      const id = decodeURIComponent(editProduct[1]);
+      if (!await db.get("SELECT 1 FROM products WHERE id = ?", [id])) {
+        return fail(res, 404, "Product not found.");
+      }
+      if (method === "DELETE") {
+        await db.run("DELETE FROM products WHERE id = ?", [id]);
+        return sendJson(res, 200, { ok: true });
+      }
+      const body = await readBody(req);
+      const normalized = normalizeProduct(body, false);
+      if (normalized.error) return fail(res, 400, normalized.error);
+      const values = normalized.product;
+      const columns = Object.keys(values);
+      if (columns.length) {
+        await db.run(
+          `UPDATE products SET ${columns.map((key) => `${key} = ?`).join(", ")} WHERE id = ?`,
+          [...columns.map((key) => values[key]), id]
+        );
+      }
+      return sendJson(res, 200, { product: rowToProduct(await db.get("SELECT * FROM products WHERE id = ?", [id])) });
+    }
+
+    if (pathname === "/api/admin/orders" && method === "GET") {
+      const rows = await db.all(`
+        SELECT o.id, o.user_id, u.email AS user_email
+        FROM \`orders\` o LEFT JOIN users u ON u.id = o.user_id
+        ORDER BY o.id DESC LIMIT 200
+      `);
+      const orders = [];
+      for (const row of rows) {
+        const order = await getOrder(row.id);
+        order.userEmail = row.user_email || null;
+        orders.push(order);
+      }
+      return sendJson(res, 200, { orders });
+    }
+
+    const editOrder = pathname.match(/^\/api\/admin\/orders\/([^/]+)$/);
+    if (editOrder && method === "PATCH") {
+      const body = await readBody(req);
+      const status = text(body.status, 20).toLowerCase();
+      if (!["pending", "packed", "shipped", "delivered", "cancelled"].includes(status)) {
+        return fail(res, 400, "Unknown order status.");
+      }
+      const result = await db.run("UPDATE `orders` SET status = ? WHERE ref = ?", [status, decodeURIComponent(editOrder[1])]);
+      if (!result.affectedRows) return fail(res, 404, "Order not found.");
+      return sendJson(res, 200, { ok: true });
+    }
+
+    if (pathname === "/api/admin/users" && method === "GET") {
+      const rows = await db.all(`
+        SELECT u.id, u.name, u.email, u.city, u.is_admin, u.created_at,
+               (SELECT COUNT(*) FROM \`orders\` o WHERE o.user_id = u.id) AS order_count
+        FROM users u ORDER BY u.id DESC LIMIT 200
+      `);
+      return sendJson(res, 200, {
+        users: rows.map((row) => ({
+          id: Number(row.id),
+          name: row.name,
+          email: row.email,
+          city: row.city,
+          isAdmin: Boolean(row.is_admin),
+          orders: Number(row.order_count),
+          createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at)
+        }))
+      });
+    }
+
+    if (pathname === "/api/admin/images" && method === "GET") {
+      const rows = await db.all(
+        "SELECT id, mime, filename, LENGTH(data) AS size, created_at FROM images ORDER BY id DESC LIMIT 200"
+      );
+      return sendJson(res, 200, {
+        images: rows.map((row) => ({
+          id: Number(row.id),
+          src: `/api/images/${row.id}`,
+          mime: row.mime,
+          filename: row.filename,
+          size: Number(row.size),
+          createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at)
+        }))
+      });
+    }
+
+    return fail(res, 404, "Endpoint not found.");
   }
 
   return fail(res, 404, "Endpoint not found.");
+}
+
+/** Validate and map admin product form fields onto database columns. */
+function normalizeProduct(body, creating) {
+  const product = {};
+  if (creating) {
+    product.id = text(body.id, 80).toLowerCase();
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(product.id)) {
+      return { error: "Product ID must use lowercase letters, numbers and dashes." };
+    }
+  }
+
+  const fields = {
+    name: ["name", 120], format: ["format", 80], epithet: ["epithet", 200],
+    variety: ["variety", 60], category: ["category", 40], origin: ["origin", 80],
+    badge: ["badge", 40], season: ["season", 40], weight: ["weight", 60],
+    palate: ["palate", 3000], table: ["table_note", 3000], harvest: ["harvest", 3000]
+  };
+  for (const [input, [column, max]] of Object.entries(fields)) {
+    if (creating || body[input] !== undefined) product[column] = text(body[input], max);
+  }
+  for (const field of ["rating", "reviews", "price", "sort_order"]) {
+    if (creating || body[field] !== undefined) product[field] = Math.max(0, Number(body[field]) || 0);
+  }
+  if (creating || body.active !== undefined) product.active = body.active === false ? 0 : 1;
+  if (creating) product.gallery = "[]";
+
+  if (creating) {
+    if (!product.name) return { error: "Product name is required." };
+    if (!product.variety) return { error: "Variety is required." };
+  }
+  return { product };
 }
 
 /* ---------- static files ---------- */
@@ -419,33 +675,52 @@ function serveStatic(req, res, pathname, method) {
 
 /* ---------- server ---------- */
 
-http.createServer((req, res) => {
-  Promise.resolve().then(async () => {
-    const url = new URL(req.url || "/", `http://${host}:${port}`);
-    let pathname;
-    try {
-      pathname = decodeURIComponent(url.pathname);
-    } catch (_) {
-      pathname = url.pathname;
-    }
+async function main() {
+  const initialized = await initDb();
+  db = initialized.db;
+  config = initialized.config;
+  const createdAdmin = await ensureAdmin();
 
-    if (pathname.startsWith("/api/")) {
+  http.createServer((req, res) => {
+    Promise.resolve().then(async () => {
+      const url = new URL(req.url || "/", `http://${host}:${port}`);
+      let pathname;
       try {
-        await handleApi(req, res, url, pathname);
-      } catch (error) {
-        if (res.headersSent) return res.end();
-        const status = error.status && error.status < 500 ? error.status : 500;
-        if (status === 500) console.error(error);
-        return fail(res, status, status === 500 ? "Server error." : error.message);
+        pathname = decodeURIComponent(url.pathname);
+      } catch (_) {
+        pathname = url.pathname;
       }
-      return;
-    }
 
-    return serveStatic(req, res, pathname, req.method || "GET");
+      if (pathname.startsWith("/api/")) {
+        try {
+          await handleApi(req, res, url, pathname);
+        } catch (error) {
+          if (res.headersSent) return res.end();
+          const status = error.status && error.status < 500 ? error.status : 500;
+          if (status === 500) console.error(error);
+          return fail(res, status, status === 500 ? "Server error." : error.message);
+        }
+        return;
+      }
+
+      return serveStatic(req, res, pathname, req.method || "GET");
+    });
+  }).listen(port, host, () => {
+    console.log(`Tims Foods shop: http://${host}:${port}/`);
+    console.log(`MySQL: ${config.host}:${config.port}/${config.database}`);
+    if (initialized.seededProducts) {
+      console.log(`Seeded ${initialized.seededProducts} products from js/catalog.js`);
+    }
+    if (initialized.migratedImages) {
+      console.log(`Stored ${initialized.migratedImages} product image references in MySQL`);
+    }
+    if (createdAdmin) {
+      console.log(`Created admin account: ${process.env.ADMIN_EMAIL}`);
+    }
   });
-}).listen(port, host, () => {
-  console.log(`Tims Foods shop: http://${host}:${port}/`);
-  console.log(`Database: ${dbPath}`);
-  if (seededProducts) console.log(`Seeded ${seededProducts} products from js/catalog.js`);
-  if (migratedImages) console.log(`Stored ${migratedImages} product image references in the database`);
+}
+
+main().catch((error) => {
+  console.error("Failed to start server:", error);
+  process.exitCode = 1;
 });

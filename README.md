@@ -1,25 +1,30 @@
 # Tims Foods
 
-A small shop front with a SQLite-backed Node server. Products, accounts and orders are stored in a real database; payment is pay-on-delivery (nothing is charged online).
+A small shop front with a **MySQL-backed** Node server. Products, accounts, orders and product images are stored in MySQL; payment is pay-on-delivery (nothing is charged online).
 
 ## Run
 
-Requires **Node.js 26+** (`node:sqlite` is built in — no npm install needed for the server).
+Requires **Node.js 26+** and **MySQL 8+**.
 
 ```bash
-npm start           # http://127.0.0.1:5173/
-npm test            # API integration tests
+npm install
+cp .env.example .env   # then fill in your MySQL credentials
+npm start              # http://127.0.0.1:5173/
+npm test
 ```
 
-Override the port or database location with environment variables:
+`.env` is gitignored — credentials never go into the code. Example:
 
-```bash
-PORT=5273 npm start                       # macOS/Linux
-$env:PORT=5273; npm start                 # PowerShell
-$env:DB_PATH="C:\temp\shop.db"; npm start # use another database file
+```
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=yourpassword
+DB_NAME=timsfood
+PORT=5173
 ```
 
-The database lives at `data/timsfood.db` (gitignored). On first start the 20 products in `js/catalog.js` are imported into the `products` table, and their images are copied from `assets/` into the `images` table as BLOBs. After that, the database is the source of truth — edit products there, not in the JS file. `js/catalog.js` remains as an offline fallback if the API is unreachable.
+The database named by `DB_NAME` is created automatically if it does not exist. On first start the 20 products in `js/catalog.js` are imported into the `products` table and their images are copied from `assets/` into MySQL as BLOBs. After that, the database is the source of truth — edit products there, not in the JS file. `js/catalog.js` remains as an offline fallback if the API is unreachable.
 
 Product image files are deduplicated by SHA-256, so reused jar photos share one database row. Existing databases are migrated automatically on startup. Decorative site images (logo, hero, category tiles) are still plain files in `assets/`.
 
@@ -37,18 +42,42 @@ Product image files are deduplicated by SHA-256, so reused jar photos share one 
 | `POST` | `/api/orders` | Place an order (guest or signed in) |
 | `GET` | `/api/orders` | Signed-in user's order history |
 | `GET` | `/api/orders/:ref` | One of that user's orders |
+| `GET` | `/api/admin/summary` | Admin dashboard totals |
+| `GET` / `POST` | `/api/admin/products` | Admin product list / create |
+| `PUT` / `DELETE` | `/api/admin/products/:id` | Edit / remove a product |
+| `POST` | `/api/admin/products/:id/image` | Upload a product image into MySQL |
+| `GET` | `/api/admin/orders` | All orders |
+| `PATCH` | `/api/admin/orders/:ref` | Change order status |
+| `GET` | `/api/admin/users` | Customer accounts |
+| `GET` | `/api/admin/images` | Images stored in MySQL |
 
-Requests and responses are JSON. Sessions use an HttpOnly, SameSite cookie; passwords are hashed with scrypt. Order line prices are recomputed from the database, so client-supplied prices are ignored.
+Requests and responses are JSON. Sessions use an HttpOnly, SameSite cookie; passwords are hashed with scrypt. Order line prices are recomputed from the database, so client-supplied prices are ignored. Orders are inserted in a single MySQL transaction.
 
 ## Database
+
+Plain SQL through `mysql2/promise` — no ORM.
 
 - `products` — catalog, seeded once from `js/catalog.js`
 - `images` — product image BLOBs with SHA-256 checksums and MIME types
 - `users`, `sessions` — accounts and 30-day login sessions
 - `orders`, `order_items` — saved orders with a price/name snapshot per line
 
-Static files are served from the project root; `data/`, `db/`, `node_modules/` and dotfiles are never served.
+Static files are served from the project root; `db/`, `node_modules/` and dotfiles (including `.env`) are never served.
+
+## Admin portal
+
+Open `admin.html` and sign in with the account from `ADMIN_EMAIL` / `ADMIN_PASSWORD` in `.env`. That account is created (or promoted) automatically on first start. The **Admin** nav link only appears for admin users.
+
+The portal has five sections:
+
+- **Overview** — product/order/customer counts, sales total and recent orders
+- **Products** — add, edit, hide and delete products; upload jar images straight into MySQL
+- **Orders** — every order with a status dropdown (`pending`, `packed`, `shipped`, `delivered`, `cancelled`)
+- **Customers** — accounts and their order counts
+- **Images** — thumbnails of the BLOBs stored in MySQL
+
+All admin endpoints require a signed-in admin session; regular customers get `403`.
 
 ## Pages
 
-`index.html`, `shop.html`, `product.html`, `checkout.html`, `about.html`, `login.html`, `account.html`.
+`index.html`, `shop.html`, `product.html`, `checkout.html`, `about.html`, `login.html`, `account.html`, `admin.html`.
