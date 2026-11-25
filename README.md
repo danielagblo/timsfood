@@ -32,7 +32,7 @@ The database named by `DB_NAME` is created automatically. On first start the pro
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | none | Bootstrap admin account, created on first start |
 | `PORT`, `HOST` | `5173`, `127.0.0.1` | Server bind address |
 | `CLIENT_DIR` | `../client` | Static files served in development |
-| `CLIENT_ORIGIN` | none | Exact browser origin allowed by CORS (e.g. Vercel URL) |
+| `CLIENT_ORIGIN` | none | Exact browser origin(s) allowed by CORS, comma-separated, no trailing slash |
 | `COOKIE_SAME_SITE` | `Lax` | Set to `None` for cross-site hosting (adds `Secure`) |
 | `CATALOG_PATH`, `ASSETS_DIR` | local copies | Override seed sources when deploying the backend alone |
 | `PAYSTACK_SECRET_KEY` | none | Server key used to initialize and verify payments |
@@ -69,7 +69,7 @@ Webhook setup (new dashboard): go to **Developers → API configuration**, gener
 window.TF_API_BASE = "https://your-backend.example.com";
 ```
 
-Leave it empty for same-origin hosting. All API calls and product image URLs use this base automatically.
+Leave it empty for same-origin hosting. All API calls and product image URLs use this base automatically. Set `CLIENT_ORIGIN` in the backend to this exact frontend origin, or a comma-separated list to include Vercel preview URLs.
 
 **Backend → Railway / Render / Fly.io**
 
