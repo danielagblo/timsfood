@@ -636,3 +636,27 @@ test("Paystack orders are saved first, then marked paid", async (t) => {
     assert.equal(verifyWebhookSignature(raw, secret, { "x-paystack-signature": signature }), false);
   });
 });
+
+test("CORS allows cross-origin requests without extra configuration", async (t) => {
+  const origin = "https://another-client.example";
+
+  await t.test("GET reflects the browser origin", async () => {
+    const response = await fetch(`${base}/api/products`, { headers: { Origin: origin } });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("access-control-allow-origin"), origin);
+    assert.equal(response.headers.get("access-control-allow-credentials"), "true");
+  });
+
+  await t.test("preflight is answered", async () => {
+    const response = await fetch(`${base}/api/products`, {
+      method: "OPTIONS",
+      headers: {
+        Origin: origin,
+        "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "Content-Type"
+      }
+    });
+    assert.equal(response.status, 204);
+    assert.equal(response.headers.get("access-control-allow-origin"), origin);
+  });
+});

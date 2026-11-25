@@ -11,10 +11,6 @@ const port = Number(process.env.PORT) || 5173;
 const host = process.env.HOST || "127.0.0.1";
 const sessionDays = 30;
 const maxBodyBytes = 64 * 1024;
-const clientOrigins = (process.env.CLIENT_ORIGIN || "")
-  .split(",")
-  .map((value) => value.trim().replace(/\/$/, ""))
-  .filter(Boolean);
 const crossSite = process.env.COOKIE_SAME_SITE === "None";
 const cookieFlags = [
   "HttpOnly",
@@ -56,9 +52,10 @@ function sendJson(res, status, payload) {
   res.end(body);
 }
 
+/** Reflect any browser origin for now; restrict this once hosting is final. */
 function corsHeaders(req) {
   const origin = String(req.headers.origin || "");
-  if (!clientOrigins.length || !clientOrigins.includes(origin)) return null;
+  if (!origin) return null;
   return {
     "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Credentials": "true",
@@ -292,7 +289,6 @@ async function paystackRequest(method, endpoint, body) {
 }
 
 function paymentCallbackBase(req) {
-  if (clientOrigins.length) return clientOrigins[0];
   const configured = (process.env.PAYSTACK_CALLBACK_BASE || "").trim();
   if (configured) return configured.replace(/\/$/, "");
   const proto = String(req.headers["x-forwarded-proto"] || "http").split(",")[0].trim();
@@ -984,7 +980,6 @@ async function main() {
     console.log(`Tims Foods API: http://${host}:${port}/`);
     console.log(`Client files: ${root}`);
     console.log(`MySQL: ${config.host}:${config.port}/${config.database}`);
-    if (clientOrigins.length) console.log(`Allowed browser origins: ${clientOrigins.join(", ")}`);
     if (initialized.seededProducts) {
       console.log(`Seeded ${initialized.seededProducts} products from catalog.js`);
     }

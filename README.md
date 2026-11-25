@@ -32,7 +32,6 @@ The database named by `DB_NAME` is created automatically. On first start the pro
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | none | Bootstrap admin account, created on first start |
 | `PORT`, `HOST` | `5173`, `127.0.0.1` | Server bind address |
 | `CLIENT_DIR` | `../client` | Static files served in development |
-| `CLIENT_ORIGIN` | none | Exact browser origin(s) allowed by CORS, comma-separated, no trailing slash |
 | `COOKIE_SAME_SITE` | `Lax` | Set to `None` for cross-site hosting (adds `Secure`) |
 | `CATALOG_PATH`, `ASSETS_DIR` | local copies | Override seed sources when deploying the backend alone |
 | `PAYSTACK_SECRET_KEY` | none | Server key used to initialize and verify payments |
@@ -69,12 +68,12 @@ Webhook setup (new dashboard): go to **Developers → API configuration**, gener
 window.TF_API_BASE = "https://your-backend.example.com";
 ```
 
-Leave it empty for same-origin hosting. All API calls and product image URLs use this base automatically. Set `CLIENT_ORIGIN` in the backend to this exact frontend origin, or a comma-separated list to include Vercel preview URLs.
+Leave it empty for same-origin hosting. All API calls and product image URLs use this base automatically. CORS currently reflects any requesting origin so separate hosting works without extra setup; restrict it once your final domains are known.
 
 **Backend → Railway / Render / Fly.io**
 
 - Root Directory `backend`, start command `npm start`
-- Set all the backend env vars above, including `CLIENT_ORIGIN=https://your-client.vercel.app` and `COOKIE_SAME_SITE=None`
+- Set all the backend env vars above, including `COOKIE_SAME_SITE=None` for cross-site login cookies
 - Use a hosted MySQL (PlanetScale, Aiven, Railway MySQL) — Vercel cannot reach a database on your PC
 
 `backend/server.js` exports `handler(req, res)` and `init()` without calling `listen()` when imported, so the same code can also be wrapped in a serverless function if you prefer a single Vercel project.
