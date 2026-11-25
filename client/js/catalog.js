@@ -1,0 +1,432 @@
+window.EV = {
+  products: [
+    {
+      id: "soy-powder",
+      name: "Soy powder",
+      format: "Standard jar",
+      epithet: "Fine soy powder for porridge and drinks.",
+      variety: "Porridge mixes",
+      category: "mixes",
+      origin: "Ghana · TIMS NMC",
+      badge: "",
+      rating: 4.6,
+      reviews: 72,
+      price: 42,
+      season: "In stock",
+      weight: "Standard jar",
+      palate: "TIMS NMC soy powder. Stir into porridge, koko or a morning drink for extra protein.",
+      table: "Mix 2–3 spoons into hot water or milk. Whisk until smooth. Can also go into baking.",
+      harvest: "Packed by TIMS NMC in a sealed jar. Keep the lid on after each use.",
+      gallery: [
+        { src: "assets/soy-powder.png", alt: "TIMS NMC soy powder jar", focus: "center" }
+      ]
+    },
+    {
+      id: "weannimix",
+      name: "Weannimix Tom Brown",
+      format: "Standard jar",
+      epithet: "Enriched roasted corn flour.",
+      variety: "Porridge mixes",
+      category: "mixes",
+      origin: "Ghana · TIMS NMC",
+      badge: "Best seller",
+      rating: 4.9,
+      reviews: 286,
+      price: 45,
+      season: "In stock",
+      weight: "Standard jar",
+      palate: "Nutritious Weannimix Tom Brown from TIMS NMC. Roasted corn flour mixed for a filling breakfast porridge.",
+      table: "Stir into boiling water. Cook 3–5 minutes, stirring so it does not lump. Serve with milk or evaporated milk.",
+      harvest: "Enriched roasted corn flour. Packed in a sealed jar for home use.",
+      gallery: [
+        { src: "assets/weannimix.png", alt: "TIMS NMC Weannimix Tom Brown standard jar", focus: "center" },
+        { src: "assets/weannimix-family.png", alt: "Weannimix family jar", focus: "center" }
+      ]
+    },
+    {
+      id: "wheatmix",
+      name: "Wheatmix",
+      format: "Standard jar",
+      epithet: "Enriched wheat mix from 6 months.",
+      variety: "Porridge mixes",
+      category: "mixes",
+      origin: "Ghana · TIMS NMC",
+      badge: "",
+      rating: 4.7,
+      reviews: 154,
+      price: 45,
+      season: "In stock",
+      weight: "Standard jar",
+      palate: "TIMS NMC Wheatmix. A wheat porridge mix for toddlers and adults.",
+      table: "Mix with hot water or milk to a smooth porridge. From 6 months, as on the label.",
+      harvest: "Enriched mix packed by TIMS NMC.",
+      gallery: [
+        { src: "assets/wheatmix.png", alt: "TIMS NMC Wheatmix standard jar", focus: "center" },
+        { src: "assets/wheatmix-family.png", alt: "Wheatmix family jar", focus: "center" }
+      ]
+    },
+    {
+      id: "rice-flour",
+      name: "Rice flour",
+      format: "Standard jar",
+      epithet: "Rice flour from 6 months.",
+      variety: "Grits & flour",
+      category: "grits",
+      origin: "Ghana · TIMS NMC",
+      badge: "",
+      rating: 4.5,
+      reviews: 91,
+      price: 38,
+      season: "In stock",
+      weight: "Standard jar",
+      palate: "Fine rice flour for a light porridge. Suitable from 6 months, toddlers and adults.",
+      table: "Whisk into hot water. Cook until thick. Mild enough as a first porridge.",
+      harvest: "Packed by TIMS NMC. Store dry with the lid closed.",
+      gallery: [
+        { src: "assets/rice-flour.png", alt: "TIMS NMC rice flour jar", focus: "center" }
+      ]
+    },
+    {
+      id: "millet-mix",
+      name: "Millet mix",
+      format: "Standard jar",
+      epithet: "Grain and legume mix.",
+      variety: "Traditional",
+      category: "traditional",
+      origin: "Ghana · TIMS NMC",
+      badge: "",
+      rating: 4.6,
+      reviews: 67,
+      price: 48,
+      season: "In stock",
+      weight: "Standard jar",
+      palate: "Millet grain and legume mix for porridge. Groundnuts on the blend for body and flavour.",
+      table: "Cook as a thick porridge with water. Sweeten if you like. From 6 months, as on the pack.",
+      harvest: "Grain and legume mix packed by TIMS NMC.",
+      gallery: [
+        { src: "assets/millet-mix.png", alt: "TIMS NMC millet grain and legume mix", focus: "center" }
+      ]
+    },
+    {
+      id: "tom-brown",
+      name: "Tom Brown",
+      format: "Standard jar",
+      epithet: "Sophi’s Delish roasted corn mix.",
+      variety: "Traditional",
+      category: "traditional",
+      origin: "Ghana · TIMS NMC",
+      badge: "",
+      rating: 4.8,
+      reviews: 133,
+      price: 40,
+      season: "In stock",
+      weight: "Standard jar",
+      palate: "Classic Tom Brown — roasted corn mix with groundnuts. The everyday Ghana breakfast.",
+      table: "Stir into boiling water. Cook until smooth and thick. Serve hot.",
+      harvest: "Sophi’s Delish line, packed by TIMS NMC.",
+      gallery: [
+        { src: "assets/tom-brown.png", alt: "TIMS NMC Tom Brown jar", focus: "center" }
+      ]
+    },
+    {
+      id: "millet-blend-1",
+      name: "Millet blend 1",
+      format: "Standard jar",
+      epithet: "Grain and legume mix with spice.",
+      variety: "Traditional",
+      category: "traditional",
+      origin: "Ghana · TIMS NMC",
+      badge: "",
+      rating: 4.7,
+      reviews: 84,
+      price: 48,
+      season: "In stock",
+      weight: "Standard jar",
+      palate: "Millet grain and legume mix, Blend 1. Ginger and spice for a koko-style porridge.",
+      table: "Cook with water. The spice is already in the mix — taste before you add more.",
+      harvest: "From 6 months, toddlers and adults. Packed by TIMS NMC.",
+      gallery: [
+        { src: "assets/millet-blend-1.png", alt: "TIMS NMC millet blend 1 jar", focus: "center" }
+      ]
+    },
+    {
+      id: "red-sorghum-blend-2",
+      name: "Red sorghum blend 2",
+      format: "Standard jar",
+      epithet: "Grain and legume mix.",
+      variety: "Traditional",
+      category: "traditional",
+      origin: "Ghana · TIMS NMC",
+      badge: "",
+      rating: 4.6,
+      reviews: 59,
+      price: 48,
+      season: "In stock",
+      weight: "Standard jar",
+      palate: "Red sorghum grain and legume mix, Blend 2. A darker, nutty porridge.",
+      table: "Whisk into boiling water. Cook 4–6 minutes. From 6 months, as labelled.",
+      harvest: "Grain and legume mix packed by TIMS NMC.",
+      gallery: [
+        { src: "assets/red-sorghum-blend-2.png", alt: "TIMS NMC red sorghum blend 2", focus: "center" }
+      ]
+    },
+    {
+      id: "ekuegbemi",
+      name: "Ekuegbemi corn grit",
+      format: "Standard jar",
+      epithet: "Corn grit for porridge.",
+      variety: "Grits & flour",
+      category: "grits",
+      origin: "Ghana · TIMS NMC",
+      badge: "",
+      rating: 4.7,
+      reviews: 101,
+      price: 36,
+      season: "In stock",
+      weight: "Standard jar",
+      palate: "Ekuegbemi corn grit. Maize grit for a thick, homely porridge.",
+      table: "Stir into boiling water and cook until the grit softens. Serve hot.",
+      harvest: "Corn grit packed by TIMS NMC.",
+      gallery: [
+        { src: "assets/ekuegbemi.png", alt: "TIMS NMC Ekuegbemi corn grit jar", focus: "center" }
+      ]
+    },
+    {
+      id: "oat-mix",
+      name: "Oat Mix",
+      format: "Standard jar",
+      epithet: "Oat porridge mix with legumes.",
+      variety: "Porridge mixes",
+      category: "mixes",
+      origin: "Ghana · TIMS NMC",
+      badge: "",
+      rating: 4.8,
+      reviews: 178,
+      price: 50,
+      season: "In stock",
+      weight: "Standard jar",
+      palate: "Oat Mix grain and legume blend. Oats with nuts for a creamy morning porridge.",
+      table: "Cook with water or milk. From 6 months, toddlers and adults.",
+      harvest: "Packed by TIMS NMC. A family jar is also in the shop.",
+      gallery: [
+        { src: "assets/oat-mix.png", alt: "TIMS NMC Oat Mix standard jar", focus: "center" },
+        { src: "assets/oat-mix-family.png", alt: "Oat Mix family jar", focus: "center" }
+      ]
+    },
+    {
+      id: "red-sorghum-blend-1",
+      name: "Red sorghum blend 1",
+      format: "Standard jar",
+      epithet: "Grain and legume mix with spice.",
+      variety: "Traditional",
+      category: "traditional",
+      origin: "Ghana · TIMS NMC",
+      badge: "",
+      rating: 4.6,
+      reviews: 63,
+      price: 48,
+      season: "In stock",
+      weight: "Standard jar",
+      palate: "Red sorghum grain and legume mix, Blend 1. Ginger and spice in the blend.",
+      table: "Cook as porridge. Taste before adding extra spice — Blend 1 is already seasoned.",
+      harvest: "Packed by TIMS NMC for toddlers and adults.",
+      gallery: [
+        { src: "assets/red-sorghum-blend-1.png", alt: "TIMS NMC red sorghum blend 1", focus: "center" }
+      ]
+    },
+    {
+      id: "ricemix",
+      name: "Ricemix",
+      format: "Standard jar",
+      epithet: "Enriched rice porridge mix.",
+      variety: "Porridge mixes",
+      category: "mixes",
+      origin: "Ghana · TIMS NMC",
+      badge: "",
+      rating: 4.7,
+      reviews: 142,
+      price: 45,
+      season: "In stock",
+      weight: "Standard jar",
+      palate: "Nutritious Ricemix. A rice porridge mix from 6 months.",
+      table: "Mix with hot water to a smooth porridge. Mild and easy to digest.",
+      harvest: "Enriched mix packed by TIMS NMC.",
+      gallery: [
+        { src: "assets/ricemix.png", alt: "TIMS NMC Ricemix standard jar", focus: "center" },
+        { src: "assets/ricemix-family.png", alt: "Ricemix family jar", focus: "center" }
+      ]
+    },
+    {
+      id: "hausa-koko",
+      name: "Hausa Koko powder",
+      format: "Standard jar",
+      epithet: "Spiced millet drink mix.",
+      variety: "Traditional",
+      category: "traditional",
+      origin: "Ghana · TIMS NMC",
+      badge: "Popular",
+      rating: 4.9,
+      reviews: 221,
+      price: 40,
+      season: "In stock",
+      weight: "Standard jar",
+      palate: "Hausa Koko powder for adults and children above 6 months. Millet with ginger and spice.",
+      table: "Whisk into water, simmer until it thickens. Serve as a drink or a light porridge.",
+      harvest: "Packed by TIMS NMC. Keep the jar dry.",
+      gallery: [
+        { src: "assets/hausa-koko.png", alt: "TIMS NMC Hausa Koko powder jar", focus: "center" }
+      ]
+    },
+    {
+      id: "ceremix",
+      name: "Ceremix",
+      format: "Standard jar",
+      epithet: "Spiced grain and legume mix.",
+      variety: "Porridge mixes",
+      category: "mixes",
+      origin: "Ghana · TIMS NMC",
+      badge: "",
+      rating: 4.7,
+      reviews: 88,
+      price: 52,
+      season: "In stock",
+      weight: "Standard jar",
+      palate: "Ceremix spiced grain and legume mix. A fuller porridge with spice and nuts.",
+      table: "Cook with water from 6 months, as labelled. Stir well so the spice spreads.",
+      harvest: "Spiced grain and legume mix packed by TIMS NMC.",
+      gallery: [
+        { src: "assets/ceremix.png", alt: "TIMS NMC Ceremix jar", focus: "center" }
+      ]
+    },
+    {
+      id: "weetamix",
+      name: "Weetamix",
+      format: "Standard jar",
+      epithet: "Grain and legume mix.",
+      variety: "Porridge mixes",
+      category: "mixes",
+      origin: "Ghana · TIMS NMC",
+      badge: "",
+      rating: 4.6,
+      reviews: 76,
+      price: 48,
+      season: "In stock",
+      weight: "Standard jar",
+      palate: "Weetamix grain and legume blend with maize, wheat and nuts.",
+      table: "Make a porridge with hot water or milk. From 6 months, toddlers and adults.",
+      harvest: "Packed by TIMS NMC.",
+      gallery: [
+        { src: "assets/weetamix.png", alt: "TIMS NMC Weetamix jar", focus: "center" }
+      ]
+    },
+    {
+      id: "oblayo",
+      name: "Oblayo",
+      format: "Standard jar",
+      epithet: "Whole corn grits.",
+      variety: "Grits & flour",
+      category: "grits",
+      origin: "Ghana · TIMS NMC",
+      badge: "",
+      rating: 4.8,
+      reviews: 94,
+      price: 42,
+      season: "In stock",
+      weight: "Standard jar",
+      palate: "Oblayo whole corn grits. Coarse maize for a textured porridge.",
+      table: "Rinse if you like. Simmer in water until the grits are soft. Takes longer than a fine mix.",
+      harvest: "Whole corn grits packed by TIMS NMC.",
+      gallery: [
+        { src: "assets/oblayo.png", alt: "TIMS NMC Oblayo whole corn grits jar", focus: "center" }
+      ]
+    },
+    {
+      id: "weannimix-family",
+      name: "Weannimix Tom Brown family",
+      format: "Family jar",
+      epithet: "Larger jar of roasted corn mix.",
+      variety: "Family size",
+      category: "family",
+      origin: "Ghana · TIMS NMC",
+      badge: "Family",
+      rating: 4.9,
+      reviews: 119,
+      price: 105,
+      season: "In stock",
+      weight: "Family jar",
+      palate: "The same Weannimix Tom Brown in a family jar. Enriched roasted corn flour for daily porridge.",
+      table: "Cook as the standard jar: stir into boiling water for 3–5 minutes.",
+      harvest: "Family pack of TIMS NMC Weannimix.",
+      gallery: [
+        { src: "assets/weannimix-family.png", alt: "TIMS NMC Weannimix Tom Brown family jar", focus: "center" },
+        { src: "assets/weannimix.png", alt: "Weannimix standard jar", focus: "center" }
+      ]
+    },
+    {
+      id: "ricemix-family",
+      name: "Ricemix family",
+      format: "Family jar",
+      epithet: "Larger jar of Ricemix.",
+      variety: "Family size",
+      category: "family",
+      origin: "Ghana · TIMS NMC",
+      badge: "Family",
+      rating: 4.7,
+      reviews: 64,
+      price: 105,
+      season: "In stock",
+      weight: "Family jar",
+      palate: "Family jar of nutritious Ricemix. Enriched rice porridge mix from 6 months.",
+      table: "Mix with hot water to a smooth porridge.",
+      harvest: "Family pack of TIMS NMC Ricemix.",
+      gallery: [
+        { src: "assets/ricemix-family.png", alt: "TIMS NMC Ricemix family jar", focus: "center" },
+        { src: "assets/ricemix.png", alt: "Ricemix standard jar", focus: "center" }
+      ]
+    },
+    {
+      id: "wheatmix-family",
+      name: "Wheatmix family",
+      format: "Family jar",
+      epithet: "Larger jar of Wheatmix.",
+      variety: "Family size",
+      category: "family",
+      origin: "Ghana · TIMS NMC",
+      badge: "Family",
+      rating: 4.7,
+      reviews: 58,
+      price: 105,
+      season: "In stock",
+      weight: "Family jar",
+      palate: "Family jar of Wheatmix, an enriched wheat porridge mix.",
+      table: "Cook with hot water or milk. From 6 months, as on the label.",
+      harvest: "Family pack of TIMS NMC Wheatmix.",
+      gallery: [
+        { src: "assets/wheatmix-family.png", alt: "TIMS NMC Wheatmix family jar", focus: "center" },
+        { src: "assets/wheatmix.png", alt: "Wheatmix standard jar", focus: "center" }
+      ]
+    },
+    {
+      id: "oat-mix-family",
+      name: "Oat Mix family",
+      format: "Family jar",
+      epithet: "Larger jar of Oat Mix.",
+      variety: "Family size",
+      category: "family",
+      origin: "Ghana · TIMS NMC",
+      badge: "Family",
+      rating: 4.8,
+      reviews: 71,
+      price: 110,
+      season: "In stock",
+      weight: "Family jar",
+      palate: "Family jar of Oat Mix grain and legume blend.",
+      table: "Cook with water or milk. From 6 months, toddlers and adults.",
+      harvest: "Family pack of TIMS NMC Oat Mix.",
+      gallery: [
+        { src: "assets/oat-mix-family.png", alt: "TIMS NMC Oat Mix family jar", focus: "center" },
+        { src: "assets/oat-mix.png", alt: "Oat Mix standard jar", focus: "center" }
+      ]
+    }
+  ]
+};

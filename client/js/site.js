@@ -11,6 +11,7 @@
   let query = "";
   let lastFocus = null;
   let toastTimer = 0;
+  let me = null;
 
   const money = (n) => cedis.format(n);
 
@@ -349,25 +350,47 @@
     if (!isEmpty) renderSummary();
   }
 
+  function updateAuthUi(user) {
+    me = user;
+    document.querySelectorAll("[data-auth-link]").forEach((link) => {
+      link.textContent = user ? "Account" : "Sign in";
+      link.setAttribute("href", user ? "account.html" : "login.html");
+    });
+    document.querySelectorAll("[data-admin-link]").forEach((link) => {
+      link.hidden = !user || !user.isAdmin;
+    });
+    document.querySelectorAll("[data-auth-note]").forEach((note) => {
+      note.textContent = user
+        ? `Signed in as ${user.name} — this order will be saved to your account.`
+        : "Ordering as a guest? Sign in to keep your order history.";
+    });
+    if (document.body.dataset.page === "checkout" && user) {
+      const form = document.getElementById("checkout-form");
+      const nameField = form?.elements.namedItem("name");
+      const emailField = form?.elements.namedItem("email");
+      if (nameField && !nameField.value) nameField.value = user.name;
+      if (emailField && !emailField.value) emailField.value = user.email;
+    }
+  }
+
   function showConfirm(order) {
     writeCart([]);
     renderBag();
     document.getElementById("checkout-view").hidden = true;
     const view = document.getElementById("confirm-view");
-    const lines = order.cart.map((line) => {
-      const product = productById(line.id);
-      return `<li><span>${escapeHtml(product.name)} · ${escapeHtml(product.format)} × ${line.qty}</span><span>${money(product.price * line.qty)}</span></li>`;
-    }).join("");
+    const lines = order.items.map((item) => `
+      <li><span>${escapeHtml(item.name)} · ${escapeHtml(item.format)} × ${item.qty}</span><span>${money(item.price * item.qty)}</span></li>
+    `).join("");
     view.hidden = false;
     view.innerHTML = `
-      <p class="checkout-badge">Order ${escapeHtml(order.ref)}</p>
+      <p class="checkout-badge">Order saved · ${escapeHtml(order.ref)}</p>
       <h1>Thanks, ${escapeHtml(order.data.name)}.</h1>
-      <p class="lede">Your guest order is noted for ${escapeHtml(order.data.city)}. This preview does not charge or ship.</p>
+      <p class="lede">We’ve saved your order for delivery to ${escapeHtml(order.data.city)}.</p>
       <div class="checkout-card confirm-card">
         <ul class="confirm-lines">${lines}</ul>
         <p class="confirm-total"><span>Total</span><span>${money(order.totals.total)}</span></p>
       </div>
-      <p class="quiet">Nothing has been charged, and nothing will ship.</p>
+      <p class="quiet">Payment is on delivery. ${me ? `View it in your <a href="account.html">account</a>.` : "Sign in to keep this order in your history."}</p>
       <a class="btn" href="shop.html">Continue shopping</a>`;
     window.scrollTo(0, 0);
   }
@@ -376,7 +399,7 @@
     const form = document.getElementById("checkout-form");
     if (!form) return;
     syncCheckout();
-    form.addEventListener("submit", (event) => {
+    form.addEventListener("submit", async (event) => {
       event.preventDefault();
       if (!form.reportValidity()) return;
       const cart = readCart();
@@ -385,17 +408,31 @@
         return;
       }
       const button = form.querySelector("[type=submit]");
+      const errorEl = form.querySelector("[data-form-error]");
       button.disabled = true;
-      button.textContent = "Placing order…";
-      const data = Object.fromEntries(new FormData(form).entries());
-      const year = new Date().getFullYear().toString().slice(2);
-      const order = {
-        ref: `TF-${year}-${Math.floor(1000 + Math.random() * 9000)}`,
-        data,
-        cart,
-        totals: totals(cart)
-      };
-      window.setTimeout(() => showConfirm(order), 450);
+      button.textContent = "Saving order…";
+      if (errorEl) {
+        errorEl.textContent = "";
+        errorEl.hidden = true;
+      }
+      try {
+        const data = Object.fromEntries(new FormData(form).entries());
+        const response = await window.TF.request("/api/orders", {
+          method: "POST",
+          body: {
+            ...data,
+            items: cart.map((line) => ({ id: line.id, qty: line.qty }))
+          }
+        });
+        showConfirm(response.order);
+      } catch (error) {
+        if (errorEl) {
+          errorEl.textContent = error.message;
+          errorEl.hidden = false;
+        }
+        button.disabled = false;
+        button.textContent = "Place order";
+      }
     });
   }
 
@@ -439,8 +476,11 @@
   }
 
   mountChrome();
-  renderBag();
-  initPage();
+  Promise.all([window.TF.loadProducts(), window.TF.getMe()]).then(([, user]) => {
+    renderBag();
+    initPage();
+    updateAuthUi(user);
+  });
 
   document.querySelector("[data-dismiss-announce]")?.addEventListener("click", () => {
     try { sessionStorage.setItem("ev-announce", "hide"); } catch (error) { /* ignore */ }
@@ -486,6 +526,7 @@
     const add = event.target.closest("[data-add]");
     if (add) {
       const id = add.dataset.add;
+      if (!productById(id)) return;
       let qty = 1;
       if (add.dataset.configured === "true") {
         const input = document.querySelector("[data-qty-input]");

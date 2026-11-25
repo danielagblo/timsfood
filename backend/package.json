@@ -1,17 +1,17 @@
 {
-  "name": "ecommercefather",
+  "name": "timsfood-backend",
   "version": "1.0.0",
-  "description": "",
+  "description": "MySQL-backed API for Tims Foods",
   "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "sharp": "^0.35.5"
+    "mysql2": "^3.24.6"
   }
 }
