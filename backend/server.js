@@ -309,6 +309,49 @@ async function markOrderPaid(id) {
   await db.run("UPDATE `orders` SET payment_status = 'paid', paid_at = NOW() WHERE id = ?", [id]);
 }
 
+/** Old Paystack integrations sign the raw body with the secret key. */
+function verifyLegacyWebhook(raw, secret, header) {
+  const signature = String(header || "");
+  if (!/^[0-9a-f]{128}$/.test(signature)) return false;
+  const expected = crypto.createHmac("sha512", secret).update(raw).digest();
+  return crypto.timingSafeEqual(expected, Buffer.from(signature, "hex"));
+}
+
+/**
+ * Accept both webhook signature styles:
+ * - whsec_ signing secret -> new `Paystack-Signature: t=...,v1=kid:hex` header
+ * - otherwise -> legacy `x-paystack-signature` signed with the secret key
+ */
+function verifyWebhookSignature(raw, secret, headers) {
+  if (!secret.startsWith("whsec_")) {
+    return verifyLegacyWebhook(raw, secret, headers["x-paystack-signature"]);
+  }
+  const header = String(headers["paystack-signature"] || "");
+  let timestamp = null;
+  const signatures = [];
+  for (const part of header.split(",")) {
+    const split = part.indexOf("=");
+    if (split < 0) continue;
+    const key = part.slice(0, split).trim();
+    const value = part.slice(split + 1).trim();
+    if (key === "t") {
+      if (timestamp !== null || !/^\d+$/.test(value)) return false;
+      timestamp = Number(value);
+    } else if (key === "v1") {
+      const colon = value.indexOf(":");
+      if (colon > -1) signatures.push(value.slice(colon + 1).trim());
+    }
+  }
+  if (timestamp === null || !signatures.length) return false;
+  if (Math.abs(Date.now() / 1000 - timestamp) > 300) return false;
+
+  const expected = crypto.createHmac("sha512", secret).update(`${timestamp}.`).update(raw).digest();
+  return signatures.some((hex) => {
+    if (!/^[0-9a-f]{128}$/.test(hex)) return false;
+    return crypto.timingSafeEqual(expected, Buffer.from(hex, "hex"));
+  });
+}
+
 /* ---------- API ---------- */
 
 async function handleApi(req, res, url, pathname) {
@@ -575,11 +618,8 @@ async function handleApi(req, res, url, pathname) {
   if (pathname === "/api/payments/webhook" && method === "POST") {
     if (!paystackWebhookSecret) return fail(res, 503, "Paystack webhook is not configured.");
     const raw = await readRawBody(req);
-    const signature = String(req.headers["x-paystack-signature"] || "");
-    const expected = crypto.createHmac("sha512", paystackWebhookSecret).update(raw).digest("hex");
-    if (signature.length !== expected.length ||
-        !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
-      return fail(res, 400, "Invalid webhook signature.");
+    if (!verifyWebhookSignature(raw, paystackWebhookSecret, req.headers)) {
+      return fail(res, 401, "Invalid webhook signature.");
     }
     let payload;
     try {
@@ -955,7 +995,7 @@ async function main() {
   });
 }
 
-module.exports = { handler, init };
+module.exports = { handler, init, verifyWebhookSignature };
 
 if (require.main === module) {
   main().catch((error) => {

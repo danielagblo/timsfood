@@ -7,6 +7,7 @@ const http = require("node:http");
 const crypto = require("node:crypto");
 const path = require("node:path");
 const mysql = require("mysql2/promise");
+const { verifyWebhookSignature } = require("../server");
 
 const root = path.resolve(__dirname, "..");
 try {
@@ -601,7 +602,7 @@ test("Paystack orders are saved first, then marked paid", async (t) => {
     });
 
     let response = await post("bad-signature");
-    assert.equal(response.status, 400);
+    assert.equal(response.status, 401);
     assert.equal((await paymentRow(order.ref)).payment_status, "awaiting_payment");
 
     const signature = crypto.createHmac("sha512", webhookSecret).update(payload).digest("hex");
@@ -620,5 +621,18 @@ test("Paystack orders are saved first, then marked paid", async (t) => {
     });
     assert.equal(response.status, 400);
     assert.match((await response.json()).error, /pay on delivery/i);
+  });
+
+  await t.test("new whsec_ webhook signatures are verified", async () => {
+    const secret = "whsec_test_secret";
+    const raw = JSON.stringify({ event: "charge.success", data: { reference: "TF-test" } });
+    const timestamp = Math.floor(Date.now() / 1000);
+    const signature = crypto.createHmac("sha512", secret).update(`${timestamp}.`).update(raw).digest("hex");
+    const header = `t=${timestamp},v1=whk_test:${signature}`;
+
+    assert.equal(verifyWebhookSignature(raw, secret, { "paystack-signature": header }), true);
+    const stale = `t=${timestamp - 400},v1=whk_test:${signature}`;
+    assert.equal(verifyWebhookSignature(raw, secret, { "paystack-signature": stale }), false);
+    assert.equal(verifyWebhookSignature(raw, secret, { "x-paystack-signature": signature }), false);
   });
 });
