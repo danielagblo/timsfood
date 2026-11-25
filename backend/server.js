@@ -995,7 +995,13 @@ async function main() {
   });
 }
 
-module.exports = { handler, init, verifyWebhookSignature };
+// Vercel's Node runtime requires the module itself to be the request handler.
+// The named properties keep local testing and direct imports working.
+module.exports = handler;
+module.exports.default = handler;
+module.exports.handler = handler;
+module.exports.init = init;
+module.exports.verifyWebhookSignature = verifyWebhookSignature;
 
 if (require.main === module) {
   main().catch((error) => {
