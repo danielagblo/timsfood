@@ -12,6 +12,7 @@
   let me = null;
   let editingId = null;
   let products = [];
+  let currentGallery = [];
 
   const money = (amount) => `GH₵${Number(amount || 0).toLocaleString("en-GH")}`;
   const when = (value) => {
@@ -27,6 +28,23 @@
   function cell(value) {
     const td = document.createElement("td");
     td.textContent = value == null || value === "" ? "—" : String(value);
+    return td;
+  }
+
+  function thumbnails(gallery) {
+    if (!gallery || !gallery.length) return cell("—");
+    const td = document.createElement("td");
+    const box = document.createElement("div");
+    box.className = "admin-thumbs";
+    gallery.forEach((entry) => {
+      const img = document.createElement("img");
+      img.src = entry.src;
+      img.alt = entry.alt || "Product image";
+      img.title = entry.alt || "Product image";
+      img.loading = "lazy";
+      box.appendChild(img);
+    });
+    td.appendChild(box);
     return td;
   }
 
@@ -102,9 +120,10 @@
       ["Product", "ID", "Variety", "Price", "Images", "Status", "Actions"],
       products.map((product) => {
         const row = document.createElement("tr");
-        [product.name, product.id, product.variety, money(product.price),
-          (product.gallery || []).length, product.active === false ? "Hidden" : "Live"]
+        [product.name, product.id, product.variety, money(product.price)]
           .forEach((value) => row.appendChild(cell(value)));
+        row.appendChild(thumbnails(product.gallery));
+        row.appendChild(cell(product.active === false ? "Hidden" : "Live"));
 
         const actions = document.createElement("td");
         const edit = document.createElement("button");
@@ -182,33 +201,11 @@
     ));
   }
 
-  async function loadImages() {
-    const { images } = await TF.request("/api/admin/images");
-    const target = $("#image-grid");
-    if (!images.length) {
-      target.replaceChildren(empty("No images in the database yet."));
-      return;
-    }
-    target.replaceChildren(...images.map((image) => {
-      const card = document.createElement("figure");
-      card.className = "admin-image-card";
-      const img = document.createElement("img");
-      img.src = image.src;
-      img.alt = image.filename || `Image ${image.id}`;
-      img.loading = "lazy";
-      const caption = document.createElement("figcaption");
-      caption.textContent = `${image.filename || `#${image.id}`} · ${(image.size / 1024).toFixed(0)} KB`;
-      card.append(img, caption);
-      return card;
-    }));
-  }
-
   const panels = {
     overview: loadOverview,
     products: loadProducts,
     orders: loadOrders,
-    customers: loadUsers,
-    images: loadImages
+    customers: loadUsers
   };
 
   async function showPanel(name) {
@@ -233,8 +230,43 @@
     else field.value = value == null ? "" : String(value);
   }
 
+  function renderDialogImages() {
+    const target = $("#product-images");
+    if (!currentGallery.length) {
+      target.replaceChildren(empty("No images attached yet."));
+      return;
+    }
+    target.replaceChildren(...currentGallery.map((entry) => {
+      const card = document.createElement("figure");
+      card.className = "admin-image-card";
+      const img = document.createElement("img");
+      img.src = entry.src;
+      img.alt = entry.alt || "Product image";
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "text-btn danger";
+      remove.textContent = "Remove";
+      remove.addEventListener("click", async () => {
+        try {
+          await TF.request(
+            `/api/admin/products/${encodeURIComponent(editingId)}/images/${entry.imageId}`,
+            { method: "DELETE" }
+          );
+          currentGallery = currentGallery.filter((item) => item.imageId !== entry.imageId);
+          renderDialogImages();
+          await loadProducts();
+        } catch (err) {
+          $("[data-product-error]").textContent = err.message;
+        }
+      });
+      card.append(img, remove);
+      return card;
+    }));
+  }
+
   function openProduct(product) {
     editingId = product ? product.id : null;
+    currentGallery = product ? [...(product.gallery || [])] : [];
     productForm.reset();
     $("#product-dialog-title").textContent = product ? `Edit ${product.name}` : "Add product";
     $("#delete-product").hidden = !product;
@@ -246,7 +278,8 @@
     ["id", "name", "format", "epithet", "variety", "category", "badge", "origin",
       "season", "weight", "price", "rating", "reviews", "sort_order", "active",
       "palate", "table", "harvest"].forEach((name) => setField(name, values[name]));
-    imageForm.hidden = !product;
+    document.querySelector(".dialog-images").hidden = !product;
+    renderDialogImages();
     $("[data-product-error]").textContent = "";
     dialog.showModal();
   }
@@ -310,10 +343,12 @@
         reader.onerror = () => reject(new Error("Could not read that file."));
         reader.readAsDataURL(file);
       });
-      await TF.request(`/api/admin/products/${encodeURIComponent(editingId)}/image`, {
+      const result = await TF.request(`/api/admin/products/${encodeURIComponent(editingId)}/image`, {
         method: "POST",
         body: { data, mime: file.type, filename: file.name, alt: editingId }
       });
+      currentGallery = result.gallery;
+      renderDialogImages();
       imageForm.reset();
       error.textContent = "";
       await loadProducts();

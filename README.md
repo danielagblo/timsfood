@@ -45,7 +45,8 @@ Product image files are deduplicated by SHA-256, so reused jar photos share one 
 | `GET` | `/api/admin/summary` | Admin dashboard totals |
 | `GET` / `POST` | `/api/admin/products` | Admin product list / create |
 | `PUT` / `DELETE` | `/api/admin/products/:id` | Edit / remove a product |
-| `POST` | `/api/admin/products/:id/image` | Upload a product image into MySQL |
+| `POST` | `/api/admin/products/:id/image` | Attach an image to a product in MySQL |
+| `DELETE` | `/api/admin/products/:id/images/:imageId` | Remove an image from a product |
 | `GET` | `/api/admin/orders` | All orders |
 | `PATCH` | `/api/admin/orders/:ref` | Change order status |
 | `GET` | `/api/admin/users` | Customer accounts |
@@ -68,13 +69,12 @@ Static files are served from the project root; `db/`, `node_modules/` and dotfil
 
 Open `admin.html` and sign in with the account from `ADMIN_EMAIL` / `ADMIN_PASSWORD` in `.env`. That account is created (or promoted) automatically on first start. The **Admin** nav link only appears for admin users.
 
-The portal has five sections:
+The portal has four sections:
 
 - **Overview** — product/order/customer counts, sales total and recent orders
-- **Products** — add, edit, hide and delete products; upload jar images straight into MySQL
+- **Products** — add, edit, hide and delete products; each row shows the images attached to that product, and the edit dialog lets you add or remove jar images straight into MySQL
 - **Orders** — every order with a status dropdown (`pending`, `packed`, `shipped`, `delivered`, `cancelled`)
 - **Customers** — accounts and their order counts
-- **Images** — thumbnails of the BLOBs stored in MySQL
 
 All admin endpoints require a signed-in admin session; regular customers get `403`.
 

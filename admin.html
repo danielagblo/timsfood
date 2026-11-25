@@ -75,7 +75,6 @@
         <button type="button" role="tab" data-tab="products" aria-selected="false">Products</button>
         <button type="button" role="tab" data-tab="orders" aria-selected="false">Orders</button>
         <button type="button" role="tab" data-tab="customers" aria-selected="false">Customers</button>
-        <button type="button" role="tab" data-tab="images" aria-selected="false">Images</button>
       </div>
 
       <section class="admin-panel" data-panel="overview">
@@ -100,11 +99,6 @@
       <section class="admin-panel" data-panel="customers" hidden>
         <div class="section-head"><h2>Customers</h2></div>
         <div id="user-table" class="admin-table-wrap"></div>
-      </section>
-
-      <section class="admin-panel" data-panel="images" hidden>
-        <div class="section-head"><h2>Product images in the database</h2></div>
-        <div id="image-grid" class="admin-image-grid"></div>
       </section>
     </div>
 
@@ -140,11 +134,14 @@
           <button type="button" class="text-btn danger" id="delete-product" hidden>Delete product</button>
         </div>
       </form>
-      <form id="image-form" class="image-upload">
-        <p class="checkout-kicker">Add an image to this product</p>
-        <input type="file" name="file" accept="image/png,image/jpeg,image/webp" required>
-        <button type="submit" class="btn ghost">Upload image</button>
-      </form>
+      <div class="dialog-images">
+        <p class="checkout-kicker">Images for this product</p>
+        <div id="product-images" class="admin-thumbs"></div>
+        <form id="image-form" class="image-upload">
+          <input type="file" name="file" accept="image/png,image/jpeg,image/webp" required>
+          <button type="submit" class="btn ghost">Add image</button>
+        </form>
+      </div>
     </dialog>
   </main>
   <footer class="footer">

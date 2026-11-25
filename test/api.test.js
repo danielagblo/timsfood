@@ -381,11 +381,21 @@ test("admin portal manages the shop", async (t) => {
     });
     assert.equal(response.status, 201);
     assert.equal(response.body.gallery.length, 1);
+    const imageId = response.body.gallery[0].imageId;
 
     response = await admin.request("/api/admin/images");
     assert.equal(response.status, 200);
     assert.ok(response.body.images.some((image) => image.filename === "testjar.png"));
     assert.ok(response.body.images.some((image) => image.src.startsWith("/api/images/")));
+
+    response = await admin.request(`/api/admin/products/testjar/images/${imageId}`, {
+      method: "DELETE"
+    });
+    assert.equal(response.status, 200);
+    assert.equal(response.body.gallery.length, 0);
+
+    response = await admin.request("/api/admin/images");
+    assert.ok(!response.body.images.some((image) => image.filename === "testjar.png"));
 
     response = await admin.request("/api/admin/products/testjar", { method: "DELETE" });
     assert.equal(response.status, 200);

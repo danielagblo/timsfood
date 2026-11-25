@@ -513,6 +513,36 @@ async function handleApi(req, res, url, pathname) {
       return sendJson(res, 201, { imageId: Number(image.id), gallery });
     }
 
+    const removeImage = pathname.match(/^\/api\/admin\/products\/([^/]+)\/images\/(\d+)$/);
+    if (removeImage && method === "DELETE") {
+      const id = decodeURIComponent(removeImage[1]);
+      const imageId = Number(removeImage[2]);
+      const product = await db.get("SELECT gallery FROM products WHERE id = ?", [id]);
+      if (!product) return fail(res, 404, "Product not found.");
+      let gallery = [];
+      try {
+        gallery = typeof product.gallery === "string" ? JSON.parse(product.gallery) : (product.gallery || []);
+      } catch (_) {
+        gallery = [];
+      }
+      const remaining = gallery.filter((entry) => Number(entry.imageId) !== imageId);
+      if (remaining.length === gallery.length) return fail(res, 404, "Image is not attached to this product.");
+      await db.run("UPDATE products SET gallery = ? WHERE id = ?", [JSON.stringify(remaining), id]);
+
+      // Remove the stored bytes only when no other product still uses them.
+      const allProducts = await db.all("SELECT gallery FROM products");
+      const stillUsed = allProducts.some((row) => {
+        try {
+          const list = typeof row.gallery === "string" ? JSON.parse(row.gallery) : (row.gallery || []);
+          return list.some((entry) => Number(entry.imageId) === imageId);
+        } catch (_) {
+          return false;
+        }
+      });
+      if (!stillUsed) await db.run("DELETE FROM images WHERE id = ?", [imageId]);
+      return sendJson(res, 200, { gallery: remaining });
+    }
+
     const editProduct = pathname.match(/^\/api\/admin\/products\/([^/]+)$/);
     if (editProduct && (method === "PUT" || method === "PATCH" || method === "DELETE")) {
       const id = decodeURIComponent(editProduct[1]);
